@@ -4,6 +4,7 @@ import Header from "@/components/Dashboard/Header";
 import StatsCards from "@/components/Dashboard/StatsCards";
 import NotesPanel from "@/components/Dashboard/NotesPanel";
 import SavedLocations from "@/components/Dashboard/SavedLocations";
+import LikedLocations from "@/components/Dashboard/LikedLocations";
 
 export default function DashboardPage() {
   return (
@@ -22,6 +23,7 @@ export default function DashboardPage() {
             <NotesPanel />
           </div>
           <div className="space-y-6">
+            <LikedLocations />
             <SavedLocations />
 
             <div className="rounded-[24px] border border-white/10 bg-slate-950/60 p-5 backdrop-blur">

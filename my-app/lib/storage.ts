@@ -74,6 +74,15 @@ export function toggleLikeLocation(id: string): SavedLocation | null {
   return locations[index];
 }
 
+export function setLocationLiked(id: string, liked: boolean): SavedLocation | null {
+  const locations = getLocations();
+  const index = locations.findIndex((l) => l.id === id);
+  if (index === -1) return null;
+  locations[index].liked = liked;
+  localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locations));
+  return locations[index];
+}
+
 export function getLastSearch(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(LAST_SEARCH_KEY);

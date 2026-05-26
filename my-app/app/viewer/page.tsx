@@ -6,6 +6,7 @@ import Link from "next/link";
 import PlaceSearch from "../../components/PlaceSearch";
 import CityStatsDisplay, { type CityStats } from "../../components/CityStatsDisplay";
 import type { CesiumMapRef } from "../../components/CesiumMap";
+import { getLocations, saveLocation, setLocationLiked } from "@/lib/storage";
 
 const CesiumMap = dynamic(() => import("../../components/CesiumMap"), {
   ssr: false,
@@ -20,6 +21,7 @@ export default function Home() {
   const cesiumRef = useRef<CesiumMapRef>(null);
   const [currentCity, setCurrentCity] = useState<CityStats | null>(null);
   const [modelsVisible, setModelsVisible] = useState(true);
+  const [likeStatus, setLikeStatus] = useState<string>("");
 
   const handleLocationFound = (latitude: number, longitude: number, name: string) => {
     // Extract country from display name if available
@@ -39,6 +41,40 @@ export default function Home() {
   const toggleModels = () => {
     cesiumRef.current?.toggleModels();
     setModelsVisible(prev => !prev);
+  };
+
+  const handleLikeCurrentLocation = () => {
+    if (!currentCity) {
+      setLikeStatus("Search for a location first.");
+      return;
+    }
+
+    const locations = getLocations();
+    const existing = locations.find((location) => (
+      location.name.toLowerCase() === currentCity.name.toLowerCase()
+      && Math.abs(location.latitude - currentCity.latitude) < 0.00001
+      && Math.abs(location.longitude - currentCity.longitude) < 0.00001
+    ));
+
+    if (existing) {
+      setLocationLiked(existing.id, true);
+      setLikeStatus("Location liked and synced to dashboard.");
+      return;
+    }
+
+    const description = currentCity.country
+      ? `Liked from viewer · ${currentCity.country}`
+      : "Liked from viewer";
+
+    saveLocation({
+      name: currentCity.name,
+      description,
+      latitude: currentCity.latitude,
+      longitude: currentCity.longitude,
+      liked: true,
+    });
+
+    setLikeStatus("Location added to dashboard favorites.");
   };
 
   return (
@@ -101,6 +137,18 @@ export default function Home() {
               <p className="text-xs uppercase tracking-[0.26em] text-cyan-300">3D Models</p>
               <p className="mt-2 text-base font-medium text-white">{modelsVisible ? "Visible" : "Hidden"}</p>
             </button>
+          </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              onClick={handleLikeCurrentLocation}
+              className="rounded-xl border border-pink-300/40 bg-pink-400/10 px-4 py-2 text-sm font-medium text-pink-200 transition hover:border-pink-300/70 hover:bg-pink-400/20"
+            >
+              Like Current Location
+            </button>
+            {likeStatus && (
+              <p className="text-xs text-slate-300">{likeStatus}</p>
+            )}
           </div>
         </header>
 
