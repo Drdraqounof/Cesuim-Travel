@@ -2,6 +2,11 @@
 
 import Link from "next/link";
 
+async function handleLogout() {
+  await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+  window.location.href = "/login";
+}
+
 export default function Header() {
   return (
     <header className="flex flex-col gap-6 rounded-[32px] border border-white/10 bg-white/6 px-6 py-6 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between lg:px-8">
@@ -53,6 +58,12 @@ export default function Header() {
             3D Environment
           </span>
         </Link>
+        <button
+          onClick={handleLogout}
+          className="rounded-2xl border border-red-300/20 bg-red-500/10 px-5 py-3 text-sm font-medium text-red-200 transition hover:border-red-300/40 hover:bg-red-500/20"
+        >
+          Sign Out
+        </button>
       </nav>
     </header>
   );

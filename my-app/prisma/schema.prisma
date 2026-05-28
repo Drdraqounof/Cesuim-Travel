@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  notes        Note[]
+  locations    SavedLocation[]
+  likes        Like[]
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model SavedLocation {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  latitude    Float
+  longitude   Float
+  elevation   Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes       Like[]
+
+  @@index([userId])
+  @@index([latitude, longitude])
+}
+
+model Like {
+  id         String        @id @default(cuid())
+  createdAt  DateTime      @default(now())
+  userId     String
+  locationId String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location   SavedLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, locationId])
+  @@index([locationId])
+}
