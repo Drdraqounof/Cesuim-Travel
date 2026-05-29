@@ -5,6 +5,7 @@ import {
   BoundingSphere,
   Cartesian3,
   Cartographic,
+  Cartesian2,
   HeadingPitchRange,
   Ion,
   IonResource,
@@ -13,11 +14,15 @@ import {
   type Cesium3DTileset as Cesium3DTilesetPrimitive,
   type TerrainProvider,
   type Viewer as CesiumViewer,
+  Color,
+  LabelStyle,
+  DistanceDisplayCondition,
 } from "cesium";
 import {
   Cesium3DTileset,
   type CesiumComponentRef,
   Viewer,
+  Entity,
 } from "resium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
@@ -92,6 +97,12 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
   const [elevationData, setElevationData] = useState<ElevationData | null>(null);
   const [elevationLoading, setElevationLoading] = useState(false);
   const [modelsVisible, setModelsVisible] = useState(true);
+  const [showTemps, setShowTemps] = useState(false);
+  const [tempPoints, setTempPoints] = useState<Array<{latitude:number;longitude:number;tempC:number}>>([]);
+  const [centerLocation, setCenterLocation] = useState<{lat:number;lng:number} | null>(null);
+  const [centerAddress, setCenterAddress] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
+  const locationDebounceRef = useRef<number | null>(null);
   const initialViewSetRef = useRef(false);
 
   const ionToken = process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN?.trim() ?? "";
@@ -414,6 +425,109 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
     }
   };
 
+  const tempToColor = (t:number) => {
+    // simple blue->yellow->red scale
+    if (t <= 0) return "#2b83ba";
+    if (t <= 10) return "#abdda4";
+    if (t <= 20) return "#ffffbf";
+    if (t <= 30) return "#fdae61";
+    return "#d7191c";
+  };
+
+  const fetchTempPoints = async (centerLat?: number, centerLng?: number) => {
+    try {
+      const lat = centerLat ?? Number(downtownLocation?.latitude ?? 37.7749);
+      const lng = centerLng ?? Number(downtownLocation?.longitude ?? -122.4194);
+      const resp = await fetch(`/api/temperature?lat=${lat}&lng=${lng}`);
+      const data = await resp.json();
+      if (resp.ok && data.points) {
+        setTempPoints(data.points);
+      } else {
+        console.warn('[CesiumMap] Temperature API returned no points', data);
+        setTempPoints([]);
+      }
+    } catch (err) {
+      console.error('[CesiumMap] Failed to fetch temps', err);
+      setTempPoints([]);
+    }
+  };
+
+  useEffect(() => {
+    if (!showTemps) return;
+    // fetch when toggled on, center on downtown if available
+    const lat = downtownLocation ? Number(downtownLocation.latitude) : undefined;
+    const lng = downtownLocation ? Number(downtownLocation.longitude) : undefined;
+    void fetchTempPoints(lat, lng);
+  }, [showTemps, downtownLocation]);
+
+  useEffect(() => {
+    const viewer = viewerRef.current?.cesiumElement;
+    if (!viewer) return;
+
+    const scene = viewer.scene;
+    const canvas = scene.canvas as HTMLCanvasElement;
+
+    const handleCameraChanged = () => {
+      // debounce rapid camera moves
+      if (locationDebounceRef.current) {
+        clearTimeout(locationDebounceRef.current);
+      }
+
+      locationDebounceRef.current = window.setTimeout(async () => {
+        try {
+          const centerPx = new Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2);
+          const ray = viewer.camera.getPickRay(centerPx);
+          let cartesian: Cartesian3 | undefined = undefined;
+
+          // `getPickRay` can return `undefined` (e.g., when the camera is orthographic
+          // or otherwise cannot produce a pick ray). Guard against that before calling
+          // `scene.globe.pick`, which expects a non-undefined `Ray`.
+          if (ray) {
+            cartesian = scene.globe.pick(ray, scene);
+          }
+
+          if (!cartesian) {
+            // fallback to camera position
+            cartesian = viewer.camera.position;
+          }
+
+          const cartographic = Cartographic.fromCartesian(cartesian);
+          const lat = CesiumMath.toDegrees(cartographic.latitude);
+          const lng = CesiumMath.toDegrees(cartographic.longitude);
+
+          setCenterLocation({ lat, lng });
+          setLocating(true);
+          setCenterAddress(null);
+
+          const resp = await fetch(`/api/geocode?lat=${lat}&lng=${lng}`);
+          const data = await resp.json();
+
+          if (resp.ok && data.address) {
+            setCenterAddress(data.address);
+          } else {
+            setCenterAddress(null);
+          }
+        } catch (err) {
+          console.warn('[CesiumMap] center location update failed', err);
+          setCenterAddress(null);
+        } finally {
+          setLocating(false);
+        }
+      }, 500);
+    };
+
+    viewer.camera.changed.addEventListener(handleCameraChanged);
+
+    return () => {
+      if (locationDebounceRef.current) {
+        clearTimeout(locationDebounceRef.current);
+      }
+      try {
+        viewer.camera.changed.removeEventListener(handleCameraChanged as any);
+      } catch {}
+    };
+  }, [viewerRef.current]);
+
   if (!tilesetSource) {
     return (
       <div className="flex min-h-[70svh] items-center justify-center rounded-[28px] border border-white/10 bg-slate-950 px-6 text-center text-slate-200 shadow-2xl shadow-slate-950/40">
@@ -437,14 +551,35 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
     <section className="relative min-h-[70svh] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950 shadow-2xl shadow-slate-950/40">
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-4 bg-gradient-to-b from-slate-950 via-slate-950/70 to-transparent px-6 py-5 text-white">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">Cesium Downtown</p>
           <h2 className="mt-2 text-2xl font-semibold">3D city environment</h2>
           <p className="mt-2 max-w-md text-sm leading-6 text-slate-300">
             Explore Earth from space. Click "Explore Downtown" above or use the guide to fly into the downtown district and inspect the loaded city blocks.
           </p>
+          <div className="mt-2 text-xs text-slate-300">
+            {locating ? (
+              <span>Locating…</span>
+            ) : centerAddress ? (
+              <span title={`${centerLocation?.lat}, ${centerLocation?.lng}`}>{centerAddress}</span>
+            ) : centerLocation ? (
+              <span>{centerLocation.lat.toFixed(5)}, {centerLocation.lng.toFixed(5)}</span>
+            ) : (
+              <span>Center location unknown</span>
+            )}
+          </div>
         </div>
-        <div className="rounded-full border border-white/15 bg-black/30 px-4 py-2 text-xs uppercase tracking-[0.24em] text-slate-200 backdrop-blur">
-          {sceneState}
+        <div className="flex items-center gap-3">
+          <div className="rounded-full border border-white/15 bg-black/30 px-4 py-2 text-xs uppercase tracking-[0.24em] text-slate-200 backdrop-blur">
+            {sceneState}
+          </div>
+          <div className="pointer-events-auto rounded-md bg-black/40 px-3 py-2 text-sm text-slate-100 backdrop-blur">
+            <button
+              onClick={() => setShowTemps(prev => !prev)}
+              className="px-2 py-1 text-sm rounded bg-white/6 hover:bg-white/10"
+            >
+              {showTemps ? 'Hide Temps' : 'Show Temps'}
+            </button>
+            <span className="ml-2 text-xs text-slate-300">{tempPoints.length ? `${tempPoints.length} points` : ''}</span>
+          </div>
         </div>
       </div>
 
@@ -481,6 +616,49 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
               url={tilesetSource}
             />
           )}
+          {showTemps && tempPoints.length > 0 && (() => {
+            const temps = tempPoints.map(t => t.tempC);
+            const minT = Math.min(...temps);
+            const maxT = Math.max(...temps);
+            const clamp = (v:number, a:number, b:number) => Math.max(a, Math.min(b, v));
+
+            return tempPoints.map((p, idx) => {
+              // Map temperature to pillar height (meters)
+              const norm = (p.tempC - minT) / (maxT - minT || 1);
+              const height = 50 + norm * 450; // 50m -> 500m
+              const baseAltitude = 0; // leave at ground level; position cylinder center at half-height
+              const centerAltitude = baseAltitude + height / 2;
+              const color = Color.fromCssColorString(tempToColor(p.tempC)).withAlpha(0.9);
+
+              return (
+                <Entity
+                  key={`temp-${idx}`}
+                  position={Cartesian3.fromDegrees(p.longitude, p.latitude, centerAltitude)}
+                  name={`Temp ${p.tempC}°C`}
+                  cylinder={{
+                    length: height,
+                    topRadius: 30,
+                    bottomRadius: 30,
+                    material: color,
+                    outline: true,
+                    outlineColor: Color.WHITE,
+                    outlineWidth: 1,
+                  }}
+                  label={{
+                    text: `${p.tempC}°C`,
+                    font: '16px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial',
+                    style: LabelStyle.FILL_AND_OUTLINE,
+                    outlineWidth: 3,
+                    outlineColor: Color.BLACK,
+                    fillColor: Color.WHITE,
+                    scale: 1.2,
+                    pixelOffset: new Cartesian2(0, -Math.max(40, height / 10)),
+                    distanceDisplayCondition: new DistanceDisplayCondition(0, 200000),
+                  }}
+                />
+              );
+            });
+          })()}
         </Viewer>
       </div>
     </section>
