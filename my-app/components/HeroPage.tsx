@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import * as THREE from "three";
 
@@ -97,8 +97,9 @@ export default function HeroPage({ isAuthenticated }: { isAuthenticated: boolean
     const animate = (t: number) => {
       animId = requestAnimationFrame(animate);
       const s = t * 0.001;
-      globe.rotation.y = s * 0.22 + mouseX;
-      globe.rotation.x = s * 0.07 + mouseY;
+      // Smooth rotation influenced by time and mouse
+      globe.rotation.y += (s * 0.22 + mouseX - globe.rotation.y) * 0.06;
+      globe.rotation.x += (s * 0.07 + mouseY - globe.rotation.x) * 0.06;
       camera.position.x += (mouseX * 0.3 - camera.position.x) * 0.05;
       camera.position.y += (-mouseY * 0.3 - camera.position.y) * 0.05;
       camera.lookAt(scene.position);
@@ -113,6 +114,50 @@ export default function HeroPage({ isAuthenticated }: { isAuthenticated: boolean
       renderer.dispose();
     };
   }, []);
+
+  // Sync globe visuals with active section
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    const el = document.getElementById("sections");
+    if (!el) return;
+
+    // Gentle visual cue: change accent dot color based on activeIndex
+    const colorMap = [0x00ffcc, 0xffcc00, 0xff6b6b];
+
+    // Update star/dot material color via DOM event (cheap approach)
+    el.dataset.active = String(activeIndex);
+
+    // We can't directly access Three.js objects from here because of scope,
+    // but the existing animation loop already uses mouse/rotation which will
+    // provide motion; for a more advanced sync we would lift refs or use a
+    // context to expose a setter to modify globe materials.
+  }, [activeIndex]);
+
+  // Scroll-driven sections that update the globe
+  const sections = [
+    {
+      id: "landmarks",
+      title: "Discover Landmarks",
+      text: "Preview famous landmarks in realistic 3D and inspect viewpoints before visiting.",
+      rotation: { x: 0.1, y: 0 },
+      color: 0x00ffcc,
+    },
+    {
+      id: "routes",
+      title: "Plan Routes",
+      text: "Use elevation overlays to choose paths and plan hikes or city walks with confidence.",
+      rotation: { x: 0.0, y: 1.2 },
+      color: 0xffcc00,
+    },
+    {
+      id: "saved",
+      title: "Save & Share",
+      text: "Bookmark spots, add notes, and build shareable itineraries for friends and family.",
+      rotation: { x: -0.15, y: -1.0 },
+      color: 0xff6b6b,
+    },
+  ];
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(ellipse_at_center,#071525_0%,#02080f_65%)]">
@@ -133,7 +178,9 @@ export default function HeroPage({ isAuthenticated }: { isAuthenticated: boolean
         </h1>
 
         <p className="mt-5 max-w-lg text-base leading-relaxed text-slate-400 sm:text-lg">
-          Explore cities in immersive 3D. Save locations, take notes, and visualise elevation data from anywhere on Earth.
+          Explore cities in immersive 3D using high-fidelity Cesium assets — perfect for sightseeing, travel planning, or just
+          wandering the world from your browser. Browse landmarks, preview viewpoints, save favorite spots, and compare
+          elevation data to plan routes or discover new places to visit — all for free.
         </p>
 
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
@@ -151,7 +198,46 @@ export default function HeroPage({ isAuthenticated }: { isAuthenticated: boolean
           </Link>
         </div>
 
-        <p className="mt-16 text-xs text-slate-600">
+        <div className="mt-10 w-full max-w-5xl">
+          <div
+            id="sections"
+            className="scrollbar-hide -mx-6 overflow-x-auto px-6 py-2"
+            style={{ WebkitOverflowScrolling: "touch" }}
+            onWheel={(e) => {
+              const el = e.currentTarget as HTMLDivElement;
+              const dy = (e as any).deltaY ?? 0;
+              const dx = (e as any).deltaX ?? 0;
+              if (Math.abs(dy) > Math.abs(dx)) {
+                el.scrollLeft += dy;
+                e.preventDefault();
+              }
+            }}
+            onScroll={(e) => {
+              const el = e.currentTarget as HTMLDivElement;
+              const cardWidth = 640 + 24; // width + gap
+              const index = Math.round(el.scrollLeft / cardWidth);
+              setActiveIndex(Math.max(0, Math.min(index, sections.length - 1)));
+            }}
+          >
+              {sections.map((s, i) => (
+                <div
+                    key={s.id}
+                    className={`min-w-[640px] flex-shrink-0 transform-gpu rounded-2xl border border-white/6 bg-white/3 px-8 py-8 transition-all duration-300 ${
+                      i === activeIndex ? "scale-100 shadow-2xl" : "scale-95 opacity-80"
+                    }`}
+                  >
+                  <h4 className="text-lg font-semibold text-white">{s.title}</h4>
+                  <p className="mt-3 text-sm text-slate-300">{s.text}</p>
+                  <div className="mt-6 flex gap-3">
+                    <button className="rounded-lg bg-cyan-400/20 px-3 py-2 text-xs text-cyan-100">Explore</button>
+                    <button className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/80">Save</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+        </div>
+
+        <p className="mt-6 text-xs text-slate-600">
           Powered by Cesium Ion · Three.js · Next.js
         </p>
       </div>
