@@ -8,19 +8,31 @@ export function hashPassword(password: string): string {
   return `${salt}:${hash}`;
 }
 
-export function verifyPassword(password: string, storedValue: string): boolean {
-  const [salt, hash] = storedValue.split(":");
-
-  if (!salt || !hash) {
-    return password === storedValue;
-  }
-
-  const derived = scryptSync(password, salt, 64);
-  const original = Buffer.from(hash, "hex");
-
-  if (derived.length !== original.length) {
+export function verifyPassword(password: string, storedValue: unknown): boolean {
+  if (typeof storedValue !== "string" || storedValue.length === 0) {
     return false;
   }
 
-  return timingSafeEqual(derived, original);
+  const parts = storedValue.split(":");
+  if (parts.length !== 2) {
+    return false;
+  }
+
+  const [salt, hash] = parts;
+  if (!salt || !hash) {
+    return false;
+  }
+
+  try {
+    const derived = scryptSync(password, salt, 64);
+    const original = Buffer.from(hash, "hex");
+
+    if (derived.length !== original.length) {
+      return false;
+    }
+
+    return timingSafeEqual(derived, original);
+  } catch {
+    return false;
+  }
 }

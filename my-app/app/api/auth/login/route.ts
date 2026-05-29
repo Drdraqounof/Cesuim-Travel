@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       },
     });
 
-    if (!user || !verifyPassword(String(password), user.passwordHash)) {
+    if (!user || !user.passwordHash || !verifyPassword(String(password), user.passwordHash)) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
@@ -38,7 +38,8 @@ export async function POST(request: Request) {
     });
 
     return response;
-  } catch {
+  } catch (err) {
+    console.error("Login error:", err);
     return NextResponse.json({ error: "Failed to login" }, { status: 500 });
   }
 }
