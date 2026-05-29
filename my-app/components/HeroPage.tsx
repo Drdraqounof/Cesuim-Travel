@@ -160,87 +160,128 @@ export default function HeroPage({ isAuthenticated }: { isAuthenticated: boolean
   ];
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(ellipse_at_center,#071525_0%,#02080f_65%)]">
-      {/* Three.js canvas */}
-      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-[#072733] via-[#0a3b46] to-[#032429] text-white">
+      {/* Scanline + grain overlay */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-30"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), radial-gradient(rgba(0,0,0,0.02) 1px, transparent 1px)',
+          backgroundSize: '100% 3px, 4px 4px',
+          mixBlendMode: 'overlay',
+        }}
+      />
 
-      {/* Vignette overlay */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,#02080f_90%)]" />
+      {/* Subtle vignette (lightened) */}
+      <div className="pointer-events-none absolute inset-0 z-20 bg-[radial-gradient(ellipse_at_top_right,transparent_20%,#00000040_60%)]" />
 
-      {/* Content */}
-      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 text-center">
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.5em] text-cyan-400/70">
-          Geospatial Intelligence Platform
-        </p>
+      <div className="relative z-10 mx-auto max-w-7xl px-6 py-20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          {/* Left editorial column */}
+          <div className="lg:col-span-6 order-2 lg:order-1">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-cyan-400/80 font-dm-sans">
+              Geospatial Intelligence Platform
+            </p>
 
-        <h1 className="text-5xl font-black tracking-tight text-white drop-shadow-lg sm:text-7xl lg:text-8xl">
-          Terra<span className="text-cyan-400">Scope</span>
-        </h1>
+            <h1 className="font-syne text-4xl sm:text-5xl lg:text-6xl leading-tight tracking-tight text-white">
+              Terra
+              <span className="text-cyan-300">Scope</span>
+            </h1>
 
-        <p className="mt-5 max-w-lg text-base leading-relaxed text-slate-400 sm:text-lg">
-          Explore cities in immersive 3D using high-fidelity Cesium assets — perfect for sightseeing, travel planning, or just
-          wandering the world from your browser. Browse landmarks, preview viewpoints, save favorite spots, and compare
-          elevation data to plan routes or discover new places to visit — all for free.
-        </p>
+            <p className="mt-6 max-w-xl text-slate-100 font-dm-sans">
+              Explore cities in immersive 3D using high-fidelity Cesium assets — editorially curated viewpoints, route
+              previews, and shareable itineraries. A premium sightseeing experience from your browser.
+            </p>
 
-        <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
-          <Link
-            href={isAuthenticated ? "/dashboard" : "/login"}
-            className="inline-block rounded-2xl border border-cyan-400/50 bg-cyan-400/15 px-8 py-3.5 text-sm font-semibold text-cyan-100 backdrop-blur-sm transition duration-200 hover:border-cyan-300/90 hover:bg-cyan-400/30 hover:text-white"
-          >
-            {isAuthenticated ? "Go to Dashboard →" : "Get Started →"}
-          </Link>
-          <Link
-            href="/viewer"
-            className="inline-block rounded-2xl border border-white/10 bg-white/5 px-8 py-3.5 text-sm font-semibold text-slate-300 backdrop-blur-sm transition duration-200 hover:border-white/30 hover:bg-white/10 hover:text-white"
-          >
-            Open 3D Viewer
-          </Link>
-        </div>
+            <div className="mt-8 flex flex-wrap gap-4 items-center">
+              <Link
+                href={isAuthenticated ? "/dashboard" : "/login"}
+                className="inline-flex items-center gap-3 rounded-2xl bg-cyan-300 px-6 py-3 text-sm font-semibold shadow-lg hover:bg-cyan-200 transition text-black"
+              >
+                {isAuthenticated ? "Open Dashboard" : "Get Started"}
+              </Link>
 
-        <div className="mt-10 w-full max-w-5xl">
-          <div
-            id="sections"
-            className="scrollbar-hide -mx-6 overflow-x-auto px-6 py-2"
-            style={{ WebkitOverflowScrolling: "touch" }}
-            onWheel={(e) => {
-              const el = e.currentTarget as HTMLDivElement;
-              const dy = (e as any).deltaY ?? 0;
-              const dx = (e as any).deltaX ?? 0;
-              if (Math.abs(dy) > Math.abs(dx)) {
-                el.scrollLeft += dy;
-                e.preventDefault();
-              }
-            }}
-            onScroll={(e) => {
-              const el = e.currentTarget as HTMLDivElement;
-              const cardWidth = 640 + 24; // width + gap
-              const index = Math.round(el.scrollLeft / cardWidth);
-              setActiveIndex(Math.max(0, Math.min(index, sections.length - 1)));
-            }}
-          >
-              {sections.map((s, i) => (
-                <div
-                    key={s.id}
-                    className={`min-w-[640px] flex-shrink-0 transform-gpu rounded-2xl border border-white/6 bg-white/3 px-8 py-8 transition-all duration-300 ${
-                      i === activeIndex ? "scale-100 shadow-2xl" : "scale-95 opacity-80"
-                    }`}
-                  >
-                  <h4 className="text-lg font-semibold text-white">{s.title}</h4>
-                  <p className="mt-3 text-sm text-slate-300">{s.text}</p>
-                  <div className="mt-6 flex gap-3">
-                    <button className="rounded-lg bg-cyan-400/20 px-3 py-2 text-xs text-cyan-100">Explore</button>
-                    <button className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/80">Save</button>
-                  </div>
-                </div>
-              ))}
+              <Link
+                href="/viewer"
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/20 px-5 py-3 text-sm text-white/95 hover:bg-white/8 transition"
+              >
+                Open 3D Viewer
+              </Link>
             </div>
-        </div>
 
-        <p className="mt-6 text-xs text-slate-600">
-          Powered by Cesium Ion · Three.js · Next.js
-        </p>
+            {/* Floating stat strip */}
+            <div className="mt-10 flex flex-col gap-3">
+              <div className="flex items-center gap-6">
+                <div className="flex flex-col">
+                  <span className="text-2xl font-bold" aria-hidden>
+                    <AnimatedNumber value={1200} />
+                  </span>
+                  <span className="text-xs text-slate-400">Landmarks explored</span>
+                </div>
+                <div className="h-10 w-px bg-white/6" />
+                <div className="flex flex-col">
+                  <span className="text-2xl font-bold">
+                    <AnimatedNumber value={340} />
+                  </span>
+                  <span className="text-xs text-slate-400">Saved itineraries</span>
+                </div>
+              </div>
+
+              {/* Feature list with connector */}
+              <div className="mt-6 flex">
+                <div className="mr-4 flex flex-col items-center">
+                  <div className="h-4 w-4 rounded-full bg-cyan-400/90" />
+                  <div className="w-px flex-1 bg-white/6" />
+                </div>
+                <ul className="space-y-4">
+                  {sections.map((s, i) => (
+                    <li key={s.id} className="opacity-90">
+                      <h4 className="font-semibold">{s.title}</h4>
+                      <p className="text-sm text-slate-400 mt-1 max-w-lg">{s.text}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Right globe column */}
+          <div className="lg:col-span-6 order-1 lg:order-2 flex justify-center lg:justify-end">
+            <div className="w-full max-w-lg rounded-3xl bg-gradient-to-br from-[#0e3b45] to-[#07242b] p-6 shadow-2xl">
+              <div className="relative h-72 lg:h-96 rounded-2xl overflow-hidden">
+                <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+                <div className="absolute left-4 top-4 rounded-md bg-black/30 px-3 py-1 text-xs font-semibold">
+                  Live preview
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p className="mt-12 text-center text-xs text-slate-500">Powered by Cesium Ion · Three.js · Next.js</p>
       </div>
     </div>
   );
 }
+
+// Small animated number component
+function AnimatedNumber({ value }: { value: number }) {
+  const [num, setNum] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const duration = 900;
+    const from = 0;
+    const to = value;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setNum(Math.floor(from + (to - from) * eased));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return <>{num.toLocaleString()}</>;
+}
+
