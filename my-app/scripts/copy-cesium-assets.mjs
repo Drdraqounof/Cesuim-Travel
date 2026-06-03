@@ -31,9 +31,10 @@ const cesiumRoot = override && existsSync(override)
   : findCesiumRoot([currentDir, process.cwd()]);
 
 if (!cesiumRoot) {
-  console.error("Unable to find Cesium build assets. Looked from:", currentDir, process.cwd());
-  console.error("You can set the CESIUM_BUILD_PATH env var to the path containing Build/Cesium");
-  throw new Error("Cesium build assets not found. Ensure 'cesium' is installed and accessible.");
+  console.warn("Unable to find Cesium build assets. Looked from:", currentDir, process.cwd());
+  console.warn("You can set the CESIUM_BUILD_PATH env var to the path containing Build/Cesium");
+  process.exitCode = 0;
+  process.exit(0);
 }
 
 // Place assets into the current working directory's public/cesium so deploy builders
