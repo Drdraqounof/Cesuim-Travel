@@ -2,6 +2,12 @@ import { cpSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Skip on Vercel — CDN is used instead
+if (process.env.VERCEL) {
+  console.log("Vercel detected — skipping Cesium asset copy (CDN will be used).");
+  process.exit(0);
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(__filename);
 const foldersToCopy = ["Assets", "ThirdParty", "Workers", "Widgets"];

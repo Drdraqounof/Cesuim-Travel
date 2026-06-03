@@ -26,7 +26,11 @@ import {
 } from "resium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
-(globalThis as typeof globalThis & { CESIUM_BASE_URL?: string }).CESIUM_BASE_URL = "/cesium";
+const CESIUM_CDN = "https://cdn.jsdelivr.net/npm/cesium@1.141.0/Build/Cesium/";
+const cesiumBaseUrl = process.env.NODE_ENV === "production"
+  ? CESIUM_CDN
+  : "/cesium";
+(globalThis as typeof globalThis & { CESIUM_BASE_URL?: string }).CESIUM_BASE_URL = cesiumBaseUrl;
 
 const FALLBACK_DOWNTOWN_ASSET_ID = 96188;
 
