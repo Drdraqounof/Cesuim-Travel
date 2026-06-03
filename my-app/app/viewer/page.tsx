@@ -11,8 +11,8 @@ import { getLocations, saveLocation, setLocationLiked } from "@/lib/storage";
 const CesiumMap = dynamic(() => import("../../components/CesiumMap"), {
   ssr: false,
   loading: () => (
-    <div className="flex min-h-[70svh] items-center justify-center rounded-[28px] border border-white/10 bg-slate-950 text-sm uppercase tracking-[0.28em] text-slate-300 shadow-2xl shadow-slate-950/40">
-      Loading downtown scene...
+    <div className="flex h-full items-center justify-center bg-slate-950 text-sm uppercase tracking-[0.28em] text-slate-300">
+      Loading scene...
     </div>
   ),
 });
@@ -24,7 +24,6 @@ export default function Home() {
   const [likeStatus, setLikeStatus] = useState<string>("");
 
   const handleLocationFound = (latitude: number, longitude: number, name: string) => {
-    // Extract country from display name if available
     const parts = name.split(",");
     const country = parts.length > 1 ? parts[parts.length - 1].trim() : undefined;
 
@@ -78,92 +77,73 @@ export default function Home() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,#12314f_0%,#08131e_35%,#02050b_72%)] text-white">
+    <main className="fixed inset-0 overflow-hidden bg-[radial-gradient(circle_at_top,#12314f_0%,#08131e_35%,#02050b_72%)] text-white">
       <div className="pointer-events-none absolute inset-0 opacity-60">
         <div className="absolute left-[8%] top-16 h-44 w-44 rounded-full bg-cyan-400/20 blur-3xl" />
         <div className="absolute bottom-24 right-[12%] h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
       </div>
 
-      <section className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-8 px-5 py-5 lg:px-8 lg:py-8">
-        <header className="flex flex-col gap-6 rounded-[32px] border border-white/10 bg-white/6 px-6 py-6 backdrop-blur-xl lg:flex-row lg:items-end lg:justify-between lg:px-8">
-          <div className="max-w-3xl space-y-4">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 text-sm font-medium text-cyan-300 hover:text-cyan-200 transition mb-2"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              Back to Dashboard
-            </Link>
-            <p className="text-xs uppercase tracking-[0.32em] text-cyan-300">
-              Geospatial Downtown Viewer
-            </p>
-            <h1 className="max-w-4xl text-4xl font-semibold tracking-[-0.04em] text-white lg:text-6xl">
-              Explore a streaming 3D downtown environment inside the browser.
-            </h1>
-            <p className="max-w-2xl text-sm leading-7 text-slate-200 lg:text-base">
-              Cesium handles the globe, terrain, and 3D Tiles stream. Three.js stays installed for custom overlays,
-              animated markers, or scene effects once the core city experience is locked in.
-            </p>
-            <div className="max-w-2xl pt-2">
-              <PlaceSearch onLocationFound={handleLocationFound} />
-            </div>
-          </div>
-
-          <div className="grid gap-3 text-sm text-slate-200 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4 backdrop-blur">
-              <p className="text-xs uppercase tracking-[0.26em] text-cyan-300">Renderer</p>
-              <p className="mt-2 text-base font-medium text-white">Cesium + 3D Tiles</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4 backdrop-blur">
-              <p className="text-xs uppercase tracking-[0.26em] text-cyan-300">Optional Env</p>
-              <p className="mt-2 text-base font-medium text-white">Ion token or tileset URL</p>
-            </div>
-            <button
-              onClick={toggleModels}
-              className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4 backdrop-blur hover:border-cyan-400/50 hover:bg-cyan-400/10 transition-all"
-            >
-              <p className="text-xs uppercase tracking-[0.26em] text-cyan-300">3D Models</p>
-              <p className="mt-2 text-base font-medium text-white">{modelsVisible ? "Visible" : "Hidden"}</p>
-            </button>
-          </div>
-
-          <div className="mt-4 flex items-center gap-3">
-            <button
-              onClick={handleLikeCurrentLocation}
-              className="rounded-xl border border-pink-300/40 bg-pink-400/10 px-4 py-2 text-sm font-medium text-pink-200 transition hover:border-pink-300/70 hover:bg-pink-400/20"
-            >
-              Like Current Location
-            </button>
-            {likeStatus && (
-              <p className="text-xs text-slate-300">{likeStatus}</p>
-            )}
-          </div>
-        </header>
-
+      <div className="absolute inset-0 z-10">
         <Suspense
           fallback={
-            <div className="flex min-h-[70svh] items-center justify-center rounded-[28px] border border-white/10 bg-slate-950 text-sm uppercase tracking-[0.28em] text-slate-300 shadow-2xl shadow-slate-950/40">
-              Loading downtown scene...
+            <div className="flex h-full items-center justify-center bg-slate-950 text-sm uppercase tracking-[0.28em] text-slate-300">
+              Loading scene...
             </div>
           }
         >
           <CesiumMap ref={cesiumRef} />
         </Suspense>
+      </div>
 
-        <CityStatsDisplay stats={currentCity} />
-      </section>
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20">
+        <div className="pointer-events-auto mx-3 mt-3 flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 backdrop-blur-xl lg:mx-4 lg:mt-4 lg:gap-3 lg:px-4 lg:py-3">
+          <Link
+            href="/"
+            className="flex items-center gap-1 whitespace-nowrap text-sm font-medium text-cyan-300 hover:text-cyan-200 transition"
+          >
+            <svg
+              className="h-4 w-4 shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+            <span className="hidden sm:inline">Dashboard</span>
+          </Link>
+
+          <div className="flex-1 min-w-0">
+            <PlaceSearch onLocationFound={handleLocationFound} />
+          </div>
+
+          <button
+            onClick={toggleModels}
+            className="shrink-0 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs uppercase tracking-[0.2em] text-slate-200 backdrop-blur hover:border-cyan-400/50 hover:bg-cyan-400/10 transition-all"
+          >
+            {modelsVisible ? "3D On" : "3D Off"}
+          </button>
+
+          <button
+            onClick={handleLikeCurrentLocation}
+            className="shrink-0 rounded-xl border border-pink-300/40 bg-pink-400/10 px-3 py-2 text-xs font-medium text-pink-200 transition hover:border-pink-300/70 hover:bg-pink-400/20"
+          >
+            Like
+          </button>
+        </div>
+      </div>
+
+      {likeStatus && (
+        <div className="pointer-events-none fixed bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-950/80 px-4 py-2 text-xs text-slate-300 backdrop-blur-xl">
+          {likeStatus}
+        </div>
+      )}
+
+      <CityStatsDisplay stats={currentCity} />
     </main>
   );
 }
