@@ -1,0 +1,6 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run copy:cesium-assets && next build --webpack",
+  "outputDirectory": ".next",
+  "installCommand": "npm install"
+}
