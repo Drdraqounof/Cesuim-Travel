@@ -75,18 +75,7 @@ type DowntownLocation = {
   longitude: string;
   elevationMeters: string;
 };
-type RealLocation = {
-  latitude: number;
-  longitude: number;
-  address: string;
-};
-type ElevationData = {
-  googleElevation: number;
-  cesiumElevation: number;
-  difference: number;
-  averageElevation: number;
-  resolution: number;
-};
+
 
 const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
   const viewerRef = useRef<CesiumComponentRef<CesiumViewer> | null>(null);
@@ -96,15 +85,11 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
   const [terrainProvider, setTerrainProvider] = useState<TerrainProvider>();
   const [downtownBounds, setDowntownBounds] = useState<BoundingSphere | null>(null);
   const [downtownLocation, setDowntownLocation] = useState<DowntownLocation | null>(null);
-  const [realLocation, setRealLocation] = useState<RealLocation | null>(null);
   const [activeView, setActiveView] = useState<(typeof DOWNTOWN_VIEWS)[number]["id"]>("overview");
-  const [elevationData, setElevationData] = useState<ElevationData | null>(null);
-  const [elevationLoading, setElevationLoading] = useState(false);
   const [modelsVisible, setModelsVisible] = useState(true);
   const [showTemps, setShowTemps] = useState(false);
   const [tempPoints, setTempPoints] = useState<Array<{latitude:number;longitude:number;tempC:number}>>([]);
   const [centerLocation, setCenterLocation] = useState<{lat:number;lng:number} | null>(null);
-  const [centerAddress, setCenterAddress] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const locationDebounceRef = useRef<number | null>(null);
   const initialViewSetRef = useRef(false);
@@ -201,38 +186,6 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
       isActive = false;
     };
   }, [ionToken]);
-
-  useEffect(() => {
-    let isActive = true;
-
-    const fetchRealLocation = async () => {
-      try {
-        const response = await fetch("/api/geocode?location=Downtown San Francisco");
-        const data = await response.json();
-
-        if (isActive) {
-          if (response.ok) {
-            setRealLocation({
-              latitude: data.latitude,
-              longitude: data.longitude,
-              address: data.address,
-            });
-            console.log("[CesiumMap] Real location loaded:", data.address);
-          } else {
-            console.warn("[CesiumMap] Failed to load real location:", data.error);
-          }
-        }
-      } catch (error) {
-        console.error("[CesiumMap] Error fetching real location:", error);
-      }
-    };
-
-    void fetchRealLocation();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
 
   const tilesetSource = useMemo(() => {
     if (tilesetUrl) {
@@ -364,71 +317,6 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
     setSceneError(message);
   };
 
-  const fetchElevationData = async () => {
-    if (!realLocation) {
-      console.warn("[CesiumMap] Real location not loaded yet");
-      return;
-    }
-
-    const viewer = viewerRef.current?.cesiumElement;
-    if (!viewer) {
-      console.warn("[CesiumMap] Viewer not ready");
-      return;
-    }
-
-    setElevationLoading(true);
-
-    try {
-      // Fetch Google elevation
-      const googleResponse = await fetch(
-        `/api/elevation?lat=${realLocation.latitude}&lng=${realLocation.longitude}`
-      );
-      const googleData = await googleResponse.json();
-
-      if (!googleResponse.ok) {
-        throw new Error(googleData.error || "Failed to fetch Google elevation");
-      }
-
-      // Get Cesium terrain elevation
-      const cartographic = Cartographic.fromDegrees(
-        realLocation.longitude,
-        realLocation.latitude
-      );
-      const cesiumHeight = viewer.scene.sampleHeight(cartographic);
-
-      if (cesiumHeight === undefined) {
-        throw new Error("Could not sample Cesium terrain elevation");
-      }
-
-      const googleElev = googleData.googleElevation;
-      const cesiumElev = cesiumHeight;
-      const difference = Math.abs(googleElev - cesiumElev);
-      const averageElev = (googleElev + cesiumElev) / 2;
-
-      const combined: ElevationData = {
-        googleElevation: googleElev,
-        cesiumElevation: cesiumElev,
-        difference,
-        averageElevation: averageElev,
-        resolution: googleData.googleResolution,
-      };
-
-      setElevationData(combined);
-
-      console.log("[CesiumMap] Elevation data combined", {
-        googleElevation: googleElev.toFixed(2),
-        cesiumElevation: cesiumElev.toFixed(2),
-        difference: difference.toFixed(2),
-        averageElevation: averageElev.toFixed(2),
-      });
-    } catch (error) {
-      console.error("[CesiumMap] Error fetching elevation data:", error);
-      setElevationData(null);
-    } finally {
-      setElevationLoading(false);
-    }
-  };
-
   const tempToColor = (t:number) => {
     // simple blue->yellow->red scale
     if (t <= 0) return "#2b83ba";
@@ -500,20 +388,9 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
           const lng = CesiumMath.toDegrees(cartographic.longitude);
 
           setCenterLocation({ lat, lng });
-          setLocating(true);
-          setCenterAddress(null);
-
-          const resp = await fetch(`/api/geocode?lat=${lat}&lng=${lng}`);
-          const data = await resp.json();
-
-          if (resp.ok && data.address) {
-            setCenterAddress(data.address);
-          } else {
-            setCenterAddress(null);
-          }
+          setLocating(false);
         } catch (err) {
           console.warn('[CesiumMap] center location update failed', err);
-          setCenterAddress(null);
         } finally {
           setLocating(false);
         }
@@ -562,8 +439,6 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
           <div className="mt-2 text-xs text-slate-300">
             {locating ? (
               <span>Locating…</span>
-            ) : centerAddress ? (
-              <span title={`${centerLocation?.lat}, ${centerLocation?.lng}`}>{centerAddress}</span>
             ) : centerLocation ? (
               <span>{centerLocation.lat.toFixed(5)}, {centerLocation.lng.toFixed(5)}</span>
             ) : (

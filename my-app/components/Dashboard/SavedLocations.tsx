@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getLocations, deleteLocation, toggleLikeLocation } from "@/lib/storage";
+import { getLocations, deleteLocation, toggleLikeLocation, saveLocation } from "@/lib/storage";
 import type { SavedLocation } from "@/lib/types";
 
 interface SavedLocationsProps {
