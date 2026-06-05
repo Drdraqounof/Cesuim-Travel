@@ -193,9 +193,3 @@ export default function SavedLocations({ onFlyTo }: SavedLocationsProps) {
     </div>
   );
 }
-
-import { saveLocation as saveLocationFn } from "@/lib/storage";
-
-function saveLocation(location: Omit<SavedLocation, "id" | "createdAt">): SavedLocation {
-  return saveLocationFn(location);
-}
