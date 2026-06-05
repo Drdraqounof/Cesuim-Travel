@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "npm run copy:cesium-assets && next dev",
-    "build": "npm run copy:cesium-assets && next build",
+    "build": "npm run copy:cesium-assets && next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "copy:cesium-assets": "node ./scripts/copy-cesium-assets.mjs",
