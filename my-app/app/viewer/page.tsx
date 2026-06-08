@@ -77,26 +77,15 @@ export default function Home() {
   };
 
   return (
-    <main className="fixed inset-0 overflow-hidden bg-[radial-gradient(circle_at_top,#12314f_0%,#08131e_35%,#02050b_72%)] text-white">
+    <main className="relative flex h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,#12314f_0%,#08131e_35%,#02050b_72%)] text-white">
       <div className="pointer-events-none absolute inset-0 opacity-60">
         <div className="absolute left-[8%] top-16 h-44 w-44 rounded-full bg-cyan-400/20 blur-3xl" />
         <div className="absolute bottom-24 right-[12%] h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
       </div>
 
-      <div className="absolute inset-0 z-10">
-        <Suspense
-          fallback={
-            <div className="flex h-full items-center justify-center bg-slate-950 text-sm uppercase tracking-[0.28em] text-slate-300">
-              Loading scene...
-            </div>
-          }
-        >
-          <CesiumMap ref={cesiumRef} />
-        </Suspense>
-      </div>
-
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-20">
-        <div className="pointer-events-auto mx-3 mt-3 flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 backdrop-blur-xl lg:mx-4 lg:mt-4 lg:gap-3 lg:px-4 lg:py-3">
+      {/* Top toolbar — sits above the map, no overlap */}
+      <header className="relative z-20 shrink-0 px-3 pt-3 lg:px-4 lg:pt-4">
+        <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 backdrop-blur-xl lg:gap-3 lg:px-4 lg:py-3">
           <Link
             href="/"
             className="flex items-center gap-1 whitespace-nowrap text-sm font-medium text-cyan-300 hover:text-cyan-200 transition"
@@ -135,6 +124,27 @@ export default function Home() {
             Like
           </button>
         </div>
+      </header>
+
+      {/* Descriptive heading — now visible, below toolbar */}
+      <div className="relative z-15 shrink-0 px-3 pt-3 lg:px-4">
+        <h2 className="text-2xl font-semibold">3D city environment</h2>
+        <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-300">
+          Explore Earth from space. Click &ldquo;Explore Downtown&rdquo; above or use the guide to fly into the downtown district and inspect the loaded city blocks.
+        </p>
+      </div>
+
+      {/* Map fills remaining vertical space */}
+      <div className="relative z-10 flex-1 px-3 pb-3 pt-2 lg:px-4 lg:pb-4">
+        <Suspense
+          fallback={
+            <div className="flex h-full items-center justify-center rounded-[28px] border border-white/10 bg-slate-950 text-sm uppercase tracking-[0.28em] text-slate-300">
+              Loading scene...
+            </div>
+          }
+        >
+          <CesiumMap ref={cesiumRef} />
+        </Suspense>
       </div>
 
       {likeStatus && (
