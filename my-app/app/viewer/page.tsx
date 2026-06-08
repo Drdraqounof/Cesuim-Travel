@@ -22,6 +22,7 @@ export default function Home() {
   const [currentCity, setCurrentCity] = useState<CityStats | null>(null);
   const [modelsVisible, setModelsVisible] = useState(true);
   const [likeStatus, setLikeStatus] = useState<string>("");
+  const [locatingMe, setLocatingMe] = useState(false);
 
   const handleLocationFound = (latitude: number, longitude: number, name: string) => {
     const parts = name.split(",");
@@ -122,6 +123,49 @@ export default function Home() {
             className="shrink-0 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs uppercase tracking-[0.2em] text-slate-200 backdrop-blur hover:border-cyan-400/50 hover:bg-cyan-400/10 transition-all"
           >
             {modelsVisible ? "3D On" : "3D Off"}
+          </button>
+
+          <button
+            onClick={async () => {
+              if (!navigator.geolocation) {
+                setLikeStatus("Geolocation not supported.");
+                return;
+              }
+              setLocatingMe(true);
+              try {
+                const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+                  navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
+                );
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+
+                let name = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                try {
+                  const res = await fetch(
+                    `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+                    { headers: { "User-Agent": "TerraScope-Geospatial-Viewer" } }
+                  );
+                  const data = await res.json();
+                  if (data?.display_name) name = data.display_name;
+                } catch {}
+
+                const parts = name.split(",");
+                setCurrentCity({ name: parts[0].trim(), latitude: lat, longitude: lng, country: parts.length > 1 ? parts[parts.length - 1].trim() : undefined });
+                cesiumRef.current?.flyToLocation(lat, lng, name);
+              } catch (err) {
+                const msg = err instanceof GeolocationPositionError && err.code === 1
+                  ? "Location permission denied."
+                  : "Could not get location.";
+                setLikeStatus(msg);
+                setTimeout(() => setLikeStatus(""), 3000);
+              } finally {
+                setLocatingMe(false);
+              }
+            }}
+            disabled={locatingMe}
+            className="shrink-0 rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-3 py-2 text-xs font-medium text-emerald-200 transition hover:border-emerald-300/60 hover:bg-emerald-400/20 disabled:opacity-50"
+          >
+            {locatingMe ? "Locating…" : "My Location"}
           </button>
 
           <button
