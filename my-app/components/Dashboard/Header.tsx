@@ -36,7 +36,7 @@ export default function Header() {
         </div>
       </div>
 
-      <nav className="flex gap-3">
+      <nav className="flex flex-wrap gap-2 sm:gap-3">
         <Link
           href="/viewer"
           className="rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium text-slate-200 transition hover:border-white/30 hover:bg-white/10"

@@ -49,7 +49,7 @@ export default function CityStatsDisplay({ stats }: CityStatsDisplayProps) {
   }
 
   return (
-    <div className="fixed bottom-8 left-8 rounded-[24px] border border-white/10 bg-slate-950/80 p-6 backdrop-blur-xl text-white max-w-sm">
+    <div className="fixed bottom-4 left-4 right-4 sm:bottom-8 sm:left-8 sm:right-auto rounded-[24px] border border-white/10 bg-slate-950/80 p-4 sm:p-6 backdrop-blur-xl text-white sm:max-w-sm">
       <div className="space-y-4">
         <div>
           <h3 className="text-lg font-semibold text-cyan-300">{stats.name}</h3>

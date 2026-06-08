@@ -176,7 +176,7 @@ export default function HeroPage({ isAuthenticated }: { isAuthenticated: boolean
       {/* Subtle vignette (lightened) */}
       <div className="pointer-events-none absolute inset-0 z-20 bg-[radial-gradient(ellipse_at_top_right,transparent_20%,#00000040_60%)]" />
 
-      <div className="relative z-10 mx-auto max-w-7xl px-6 py-20">
+      <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 py-12 sm:py-20">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           {/* Left editorial column */}
           <div className="lg:col-span-6 order-2 lg:order-1">
@@ -211,7 +211,7 @@ export default function HeroPage({ isAuthenticated }: { isAuthenticated: boolean
             </div>
 
             {/* Floating stat strip */}
-            <div className="mt-10 flex flex-col gap-3">
+            <div className="mt-8 sm:mt-10 flex flex-col gap-3">
               <div className="flex items-center gap-6">
                 <div className="flex flex-col">
                   <span className="text-2xl font-bold" aria-hidden>
@@ -247,9 +247,9 @@ export default function HeroPage({ isAuthenticated }: { isAuthenticated: boolean
           </div>
 
           {/* Right globe column */}
-          <div className="lg:col-span-6 order-1 lg:order-2 flex justify-center lg:justify-end">
-            <div className="w-full max-w-lg rounded-3xl bg-gradient-to-br from-[#0e3b45] to-[#07242b] p-6 shadow-2xl">
-              <div className="relative h-72 lg:h-96 rounded-2xl overflow-hidden">
+            <div className="lg:col-span-6 order-1 lg:order-2 flex justify-center lg:justify-end">
+            <div className="w-full max-w-lg rounded-3xl bg-gradient-to-br from-[#0e3b45] to-[#07242b] p-4 sm:p-6 shadow-2xl">
+              <div className="relative h-64 sm:h-72 lg:h-96 rounded-2xl overflow-hidden">
                 <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
                 <div className="absolute left-4 top-4 rounded-md bg-black/30 px-3 py-1 text-xs font-semibold">
                   Live preview

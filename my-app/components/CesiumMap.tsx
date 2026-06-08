@@ -587,8 +587,8 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
   return (
     <section className="relative h-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-950 shadow-2xl shadow-slate-950/40">
       {/* Compact top-right controls */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-end gap-2 bg-gradient-to-b from-slate-950/80 via-slate-950/40 to-transparent px-4 pb-8 pt-3">
-        <div className="pointer-events-auto flex items-center gap-2">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-end gap-2 bg-gradient-to-b from-slate-950/80 via-slate-950/40 to-transparent px-2 sm:px-4 pb-6 sm:pb-8 pt-2 sm:pt-3">
+        <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 sm:gap-2">
           <div className="rounded-full border border-white/15 bg-black/50 px-3 py-1 text-xs uppercase tracking-[0.24em] text-slate-200 backdrop-blur">
             {sceneState}
           </div>

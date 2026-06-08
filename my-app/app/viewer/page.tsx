@@ -91,8 +91,8 @@ export default function Home() {
       </div>
 
       {/* Top toolbar — sits above the map, no overlap */}
-      <header className="relative z-20 shrink-0 px-3 pt-3 lg:px-4 lg:pt-4">
-        <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 backdrop-blur-xl lg:gap-3 lg:px-4 lg:py-3">
+      <header className="relative z-20 shrink-0 px-2 pt-2 sm:px-3 sm:pt-3 lg:px-4 lg:pt-4">
+        <div className="flex items-center gap-1.5 sm:gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-2 py-2 backdrop-blur-xl sm:px-3 lg:gap-3 lg:px-4 lg:py-3">
           <Link
             href="/dashboard"
             className="flex items-center gap-1 whitespace-nowrap text-sm font-medium text-cyan-300 hover:text-cyan-200 transition"
@@ -134,15 +134,15 @@ export default function Home() {
       </header>
 
       {/* Descriptive heading — now visible, below toolbar */}
-      <div className="relative z-15 shrink-0 px-3 pt-3 lg:px-4">
-        <h2 className="text-2xl font-semibold">3D city environment</h2>
-        <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-300">
+      <div className="relative z-15 shrink-0 px-2 sm:px-3 pt-3 lg:px-4">
+        <h2 className="text-xl sm:text-2xl font-semibold">3D city environment</h2>
+        <p className="mt-1 max-w-2xl text-xs sm:text-sm leading-5 sm:leading-6 text-slate-300">
           Explore Earth from space. Click &ldquo;Explore Downtown&rdquo; above or use the guide to fly into the downtown district and inspect the loaded city blocks.
         </p>
       </div>
 
       {/* Map fills remaining vertical space */}
-      <div className="relative z-10 flex-1 px-3 pb-3 pt-2 lg:px-4 lg:pb-4">
+      <div className="relative z-10 flex-1 px-2 pb-2 pt-2 sm:px-3 sm:pb-3 lg:px-4 lg:pb-4">
         <Suspense
           fallback={
             <div className="flex h-full items-center justify-center rounded-[28px] border border-white/10 bg-slate-950 text-sm uppercase tracking-[0.28em] text-slate-300">
