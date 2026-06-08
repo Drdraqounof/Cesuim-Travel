@@ -16,7 +16,7 @@ model User {
   updatedAt    DateTime        @updatedAt
   notes        Note[]
   locations    SavedLocation[]
-  likes        Like[]
+
 }
 
 model Note {
@@ -38,24 +38,12 @@ model SavedLocation {
   latitude    Float
   longitude   Float
   elevation   Float?
+  liked       Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  likes       Like[]
 
   @@index([userId])
   @@index([latitude, longitude])
-}
-
-model Like {
-  id         String        @id @default(cuid())
-  createdAt  DateTime      @default(now())
-  userId     String
-  locationId String
-  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  location   SavedLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, locationId])
-  @@index([locationId])
 }

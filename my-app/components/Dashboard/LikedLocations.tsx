@@ -1,16 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getLocations } from "@/lib/storage";
+import { getLocations, isLoggedIn } from "@/lib/storage";
 import type { SavedLocation } from "@/lib/types";
 
 export default function LikedLocations() {
   const [likedLocations, setLikedLocations] = useState<SavedLocation[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const locations = getLocations().filter((location) => location.liked);
-    setLikedLocations(locations);
+    getLocations().then((all) => {
+      setLikedLocations(all.filter((l) => l.liked));
+      setLoaded(true);
+    });
   }, []);
+
+  if (!loaded) {
+    return (
+      <div className="rounded-[24px] border border-white/10 bg-slate-950/60 p-5 backdrop-blur">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-white">Liked Locations</h3>
+          <p className="text-xs text-slate-400">Favorites from the 3D viewer</p>
+        </div>
+        <p className="py-4 text-center text-sm text-slate-400">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-[24px] border border-white/10 bg-slate-950/60 p-5 backdrop-blur">
@@ -22,7 +37,7 @@ export default function LikedLocations() {
       <div className="space-y-2 max-h-56 overflow-y-auto">
         {likedLocations.length === 0 ? (
           <p className="py-4 text-center text-sm text-slate-400">
-            No liked locations yet. Like a location from the 3D viewer.
+            You currently have no liked locations.
           </p>
         ) : (
           likedLocations.map((location) => (

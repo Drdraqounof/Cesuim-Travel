@@ -6,7 +6,7 @@ import Link from "next/link";
 import PlaceSearch from "../../components/PlaceSearch";
 import CityStatsDisplay, { type CityStats } from "../../components/CityStatsDisplay";
 import type { CesiumMapRef } from "../../components/CesiumMap";
-import { getLocations, saveLocation, setLocationLiked } from "@/lib/storage";
+import { getLocations, saveLocation, setLocationLiked, isLoggedIn } from "@/lib/storage";
 
 const CesiumMap = dynamic(() => import("../../components/CesiumMap"), {
   ssr: false,
@@ -42,13 +42,20 @@ export default function Home() {
     setModelsVisible(prev => !prev);
   };
 
-  const handleLikeCurrentLocation = () => {
+  const handleLikeCurrentLocation = async () => {
     if (!currentCity) {
       setLikeStatus("Search for a location first.");
       return;
     }
 
-    const locations = getLocations();
+    const loggedIn = await isLoggedIn();
+    if (!loggedIn) {
+      setLikeStatus("Sign in to save this location.");
+      setTimeout(() => setLikeStatus(""), 3000);
+      return;
+    }
+
+    const locations = await getLocations();
     const existing = locations.find((location) => (
       location.name.toLowerCase() === currentCity.name.toLowerCase()
       && Math.abs(location.latitude - currentCity.latitude) < 0.00001
@@ -56,7 +63,7 @@ export default function Home() {
     ));
 
     if (existing) {
-      setLocationLiked(existing.id, true);
+      await setLocationLiked(existing.id, true);
       setLikeStatus("Location liked and synced to dashboard.");
       return;
     }
@@ -65,7 +72,7 @@ export default function Home() {
       ? `Liked from viewer · ${currentCity.country}`
       : "Liked from viewer";
 
-    saveLocation({
+    await saveLocation({
       name: currentCity.name,
       description,
       latitude: currentCity.latitude,
@@ -87,7 +94,7 @@ export default function Home() {
       <header className="relative z-20 shrink-0 px-3 pt-3 lg:px-4 lg:pt-4">
         <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 backdrop-blur-xl lg:gap-3 lg:px-4 lg:py-3">
           <Link
-            href="/"
+            href="/dashboard"
             className="flex items-center gap-1 whitespace-nowrap text-sm font-medium text-cyan-300 hover:text-cyan-200 transition"
           >
             <svg

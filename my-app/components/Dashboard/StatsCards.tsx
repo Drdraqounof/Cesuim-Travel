@@ -27,7 +27,7 @@ export default function StatsCards() {
   });
 
   useEffect(() => {
-    setStats(getStats());
+    getStats().then(setStats);
   }, []);
 
   return (

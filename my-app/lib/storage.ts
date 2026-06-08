@@ -1,8 +1,90 @@
 import type { Note, SavedLocation, DashboardStats } from "./types";
 
 const NOTES_KEY = "terrascope_notes";
-const LOCATIONS_KEY = "terrascope_locations";
 const LAST_SEARCH_KEY = "terrascope_last_search";
+
+let sessionUser: { id: string; email: string; name: string | null } | null | undefined = undefined;
+
+async function getSession() {
+  if (sessionUser !== undefined) return sessionUser;
+  try {
+    const res = await fetch("/api/auth/me");
+    const data = await res.json();
+    sessionUser = data.user ?? null;
+  } catch {
+    sessionUser = null;
+  }
+  return sessionUser;
+}
+
+export function resetSession() {
+  sessionUser = undefined;
+}
+
+export async function isLoggedIn(): Promise<boolean> {
+  const user = await getSession();
+  return user !== null;
+}
+
+function toClientLocation(db: any): SavedLocation {
+  return {
+    id: db.id,
+    name: db.name,
+    description: db.description ?? "",
+    latitude: db.latitude,
+    longitude: db.longitude,
+    elevation: db.elevation ?? undefined,
+    liked: db.liked ?? false,
+    createdAt: db.createdAt,
+  };
+}
+
+export async function getLocations(): Promise<SavedLocation[]> {
+  const res = await fetch("/api/locations");
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.locations ?? []).map(toClientLocation);
+}
+
+export async function saveLocation(location: Omit<SavedLocation, "id" | "createdAt">): Promise<SavedLocation> {
+  const res = await fetch("/api/locations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(location),
+  });
+  if (!res.ok) throw new Error("Failed to save location");
+  const data = await res.json();
+  return toClientLocation(data.location);
+}
+
+export async function deleteLocation(id: string): Promise<void> {
+  await fetch(`/api/locations/${id}`, { method: "DELETE" });
+}
+
+export async function toggleLikeLocation(id: string): Promise<SavedLocation | null> {
+  const locations = await getLocations();
+  const loc = locations.find((l) => l.id === id);
+  if (!loc) return null;
+  const res = await fetch(`/api/locations/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ liked: !loc.liked }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return toClientLocation(data.location);
+}
+
+export async function setLocationLiked(id: string, liked: boolean): Promise<SavedLocation | null> {
+  const res = await fetch(`/api/locations/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ liked }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return toClientLocation(data.location);
+}
 
 export function getNotes(): Note[] {
   if (typeof window === "undefined") return [];
@@ -41,48 +123,6 @@ export function deleteNote(id: string): void {
   localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
 }
 
-export function getLocations(): SavedLocation[] {
-  if (typeof window === "undefined") return [];
-  const stored = localStorage.getItem(LOCATIONS_KEY);
-  return stored ? JSON.parse(stored) : [];
-}
-
-export function saveLocation(location: Omit<SavedLocation, "id" | "createdAt">): SavedLocation {
-  const locations = getLocations();
-  const newLocation: SavedLocation = {
-    ...location,
-    liked: location.liked ?? false,
-    id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
-  };
-  locations.unshift(newLocation);
-  localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locations));
-  return newLocation;
-}
-
-export function deleteLocation(id: string): void {
-  const locations = getLocations().filter((l) => l.id !== id);
-  localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locations));
-}
-
-export function toggleLikeLocation(id: string): SavedLocation | null {
-  const locations = getLocations();
-  const index = locations.findIndex((l) => l.id === id);
-  if (index === -1) return null;
-  locations[index].liked = !locations[index].liked;
-  localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locations));
-  return locations[index];
-}
-
-export function setLocationLiked(id: string, liked: boolean): SavedLocation | null {
-  const locations = getLocations();
-  const index = locations.findIndex((l) => l.id === id);
-  if (index === -1) return null;
-  locations[index].liked = liked;
-  localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locations));
-  return locations[index];
-}
-
 export function getLastSearch(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(LAST_SEARCH_KEY);
@@ -97,9 +137,9 @@ export function setLastSearch(query: string | null): void {
   }
 }
 
-export function getStats(): DashboardStats {
+export async function getStats(): Promise<DashboardStats> {
+  const locations = await getLocations();
   const notes = getNotes();
-  const locations = getLocations();
   const allItems = [...notes, ...locations].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );

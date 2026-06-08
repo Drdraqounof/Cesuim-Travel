@@ -10,6 +10,7 @@ interface SavedLocationsProps {
 
 export default function SavedLocations({ onFlyTo }: SavedLocationsProps) {
   const [locations, setLocations] = useState<SavedLocation[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -20,10 +21,13 @@ export default function SavedLocations({ onFlyTo }: SavedLocationsProps) {
   });
 
   useEffect(() => {
-    setLocations(getLocations());
+    getLocations().then((all) => {
+      setLocations(all);
+      setLoaded(true);
+    });
   }, []);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name || !formData.latitude || !formData.longitude) return;
 
     const newLocation = {
@@ -34,19 +38,19 @@ export default function SavedLocations({ onFlyTo }: SavedLocationsProps) {
       elevation: formData.elevation ? parseFloat(formData.elevation) : undefined,
     };
 
-    const saved = saveLocation(newLocation);
+    const saved = await saveLocation(newLocation);
     setLocations([saved, ...locations]);
     setFormData({ name: "", description: "", latitude: "", longitude: "", elevation: "" });
     setIsAdding(false);
   };
 
-  const handleDelete = (id: string) => {
-    deleteLocation(id);
+  const handleDelete = async (id: string) => {
+    await deleteLocation(id);
     setLocations(locations.filter((l) => l.id !== id));
   };
 
-  const handleToggleLike = (id: string) => {
-    const updated = toggleLikeLocation(id);
+  const handleToggleLike = async (id: string) => {
+    const updated = await toggleLikeLocation(id);
     if (!updated) return;
     setLocations(locations.map(l => (l.id === id ? updated : l)));
   };
@@ -58,12 +62,14 @@ export default function SavedLocations({ onFlyTo }: SavedLocationsProps) {
           <h3 className="text-lg font-semibold text-white">Saved Locations</h3>
           <p className="text-xs text-slate-400">Bookmark your favorite spots</p>
         </div>
-        <button
-          onClick={() => setIsAdding(!isAdding)}
-          className="rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-xs font-medium text-cyan-300 transition hover:border-cyan-300 hover:bg-cyan-400/20"
-        >
-          {isAdding ? "Cancel" : "Add Location"}
-        </button>
+        {loaded && (
+          <button
+            onClick={() => setIsAdding(!isAdding)}
+            className="rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-xs font-medium text-cyan-300 transition hover:border-cyan-300 hover:bg-cyan-400/20"
+          >
+            {isAdding ? "Cancel" : "Add Location"}
+          </button>
+        )}
       </div>
 
       {isAdding && (
@@ -119,9 +125,11 @@ export default function SavedLocations({ onFlyTo }: SavedLocationsProps) {
       )}
 
       <div className="space-y-2 max-h-64 overflow-y-auto">
-        {locations.length === 0 ? (
+        {locations.length === 0 && !loaded ? (
+          <p className="py-4 text-center text-sm text-slate-400">Loading...</p>
+        ) : locations.length === 0 ? (
           <p className="py-4 text-center text-sm text-slate-400">
-            No locations saved yet. Add your first location above.
+            You currently have no saved locations.
           </p>
         ) : (
           locations.map((location) => (
