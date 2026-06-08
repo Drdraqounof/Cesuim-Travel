@@ -6,7 +6,6 @@ import StatsCards from "@/components/Dashboard/StatsCards";
 import NotesPanel from "@/components/Dashboard/NotesPanel";
 import SavedLocations from "@/components/Dashboard/SavedLocations";
 import LikedLocations from "@/components/Dashboard/LikedLocations";
-import { getLocations, getNotes } from "@/lib/storage";
 import type { SavedLocation } from "@/lib/types";
 
 export default function DashboardPage() {
@@ -19,25 +18,6 @@ export default function DashboardPage() {
       name: location.name,
     });
     router.push(`/viewer?${params.toString()}`);
-  };
-
-  const handleExport = async () => {
-    const locations = await getLocations();
-    const notes = getNotes();
-
-    const data = {
-      exportedAt: new Date().toISOString(),
-      locations,
-      notes,
-    };
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `terra-scope-export-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   return (
@@ -58,53 +38,6 @@ export default function DashboardPage() {
           <div className="space-y-6">
             <LikedLocations onFlyTo={handleFlyTo} />
             <SavedLocations onFlyTo={handleFlyTo} />
-
-            <div className="rounded-[24px] border border-white/10 bg-slate-950/60 p-5 backdrop-blur">
-              <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
-              <p className="mt-1 text-xs text-slate-400">
-                Jump to your 3D environment
-              </p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <a
-                  href="/"
-                  className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-white/30 hover:bg-white/10"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
-                    />
-                  </svg>
-                  Open 3D View
-                </a>
-                <button
-                  onClick={handleExport}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-white/30 hover:bg-white/10"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-                    />
-                  </svg>
-                  Export Data
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </section>
