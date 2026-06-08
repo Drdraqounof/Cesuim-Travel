@@ -277,6 +277,8 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
     }
 
     viewer.scene.globe.depthTestAgainstTerrain = true;
+    viewer.scene.globe.enableLighting = true;
+    viewer.scene.sun!.show = true;
     setupCameraConstraints(viewer);
     viewer.scene.requestRender();
   };
