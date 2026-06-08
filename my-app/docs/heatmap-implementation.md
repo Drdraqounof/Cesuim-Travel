@@ -14,21 +14,21 @@ User clicks "HeatMap" button
        │
        ├── No  → Show warning: "Please search a location..."
        │
-       └── Yes → Fetch 16×16 temperature grid from /api/temperature
+       └── Yes → Fetch 8×8 temperature grid from /api/temperature
                     │
                     ▼
-              Bilinear interpolation (×2 smoothing pass)
+              Bilinear interpolation (×2 smoothing pass → 15×15)
                     │
                     ▼
-              Create ClassificationPrimitive per cell (31×31 grid)
+              Create ClassificationPrimitive per cell (15×15 grid)
                     │
                     ▼
-              Render colored rectangles on terrain + 3D Tiles
+              Render colored rectangles on 3D Tiles (CESIUM_3D_TILE)
 ```
 
 ### Success Indicator
 
-When the heatmap data is successfully fetched and rendered, a green toast appears at the top-right showing **"Heat Map Applied"** with a checkmark icon. It auto-dismisses after 3 seconds.
+A green toast **"Heat Map Applied"** with a checkmark appears top-right when data renders. Auto-dismisses after 3 seconds.
 
 ### Stale-Response Protection
 
@@ -41,8 +41,8 @@ Time ─────────────────────────
   │     └─ user searches "Brooklyn"
   │ fetchTempPoints(Brooklyn) starts    ← API call 2
   │     │
-  │     ├─ API call 2 responds → ❌ OK, shows Brooklyn
-  │     └─ API call 1 responds → ❌ OVERWRITES with Tokyo! ← BUG
+  │     ├─ API call 2 responds → OK, shows Brooklyn
+  │     └─ API call 1 responds → OVERWRITES with Tokyo! ← BUG
 ```
 
 **Fix**: Each `fetchTempPoints` call increments `fetchIdRef`. Before processing the response, it checks whether the fetch ID still matches `fetchIdRef.current`. If a newer fetch was started, the stale response is silently discarded.
@@ -51,54 +51,63 @@ Time ─────────────────────────
 
 When searching a new location, `flyToLocation` uses a two-stage flyTo (space → ground). The camera moves continuously, so the 500ms debounce on `camera.changed` never fires until the final zoom completes.
 
-**Fix**: A `camera.moveEnd` listener resets `lastFetchPosRef.current = null` and increments `heatmapSettleKey` when the camera stops moving. This triggers the fetch effect unconditionally (since `lastFetchPos` is null), guaranteeing the heatmap is always fetched for the settled camera position.
+**Fix**: A `camera.moveEnd` listener resets `lastFetchPosRef.current = null` and increments `heatmapSettleKey`. This triggers the fetch effect unconditionally, guaranteeing fresh data at the settled camera position.
 
-### Data Flow
+### Re-Fetch Triggers
 
-1. **Button click** — validates that a location is available (`centerLocation` from camera or `downtownLocation` from tileset)
-2. **API fetch** — calls `/api/temperature?lat=X&lng=Y&spacing=0.015&rows=16&cols=16` returning a 16×16 grid (256 points) and `{spacing, rows, cols}` metadata
-3. **Smoothing** — bilinear interpolation upsamples the grid by factor 2 (→ 31×31 = 961 points) for smooth color transitions
-4. **Color mapping** — each point is mapped to a color via the `tempToColor` function using a 5-stop palette with linear interpolation
-5. **Rendering** — `ClassificationPrimitive` instances per cell with `classificationType: ClassificationType.CESIUM_3D_TILE` (buildings only, not terrain)
+1. **Camera settles** — `camera.moveEnd` resets `lastFetchPosRef` and increments `heatmapSettleKey`.
+2. **Camera pans > 0.3°** — distance check in the fetch effect against `lastFetchPosRef`.
+3. **Heatmap toggled on** — fires immediately at the current center location.
+
+## API Route (`app/api/temperature/route.ts`)
+
+### Endpoint
+
+```
+GET /api/temperature?lat=37.77&lng=-122.42&spacing=0.025&rows=8&cols=8
+```
+
+Returns `{ points: [{latitude, longitude, tempC}], spacing, rows, cols }`.
+
+### OpenWeatherMap Integration
+
+When `OPENWEATHERMAP_API_KEY` is set in `.env`, each grid cell is fetched from the One Call API 3.0. Without the key, demo synthetic data is used.
+
+### Rate Limiting (Free Tier: 60 RPM)
+
+Three layers of protection to stay under the 60 RPM limit:
+
+1. **Sliding-window counter**: Before each cell API call, the server checks how many calls were made in the last 60 seconds. If ≥ 55 calls, remaining cells are filled with interpolated estimates (`estimateCellTemp`) — no error is thrown.
+
+2. **Per-location cache**: Grid results are cached in-memory for 15 minutes, keyed by rounded `lat,lng,rows,cols,spacing`. Revisiting the same area (e.g. after panning away and back) returns cached data instantly with zero API calls.
+
+3. **Reduced grid**: 8×8 grid (64 cells) instead of the original 16×16 (256 cells). At ~55 RPM, the first fetch uses ~55 real API calls + ~9 estimated cells. Cache handles subsequent requests.
+
+### Rate Limiter Implementation
+
+```typescript
+const requestTimestamps: number[] = [];
+const RPM_LIMIT = 55;
+const WINDOW_MS = 60_000;
+
+function checkRateLimit(): boolean {
+  const now = Date.now();
+  while (requestTimestamps.length > 0 && requestTimestamps[0] < now - WINDOW_MS) {
+    requestTimestamps.shift();
+  }
+  if (requestTimestamps.length >= RPM_LIMIT) return false;
+  requestTimestamps.push(now);
+  return true;
+}
+```
+
+### Fallback Estimation
+
+When rate-limited, `estimateCellTemp` interpolates from nearby successfully-fetched cells using inverse-distance weighting. If no cells succeeded yet, defaults to 20°C.
 
 ## Smoothing (Bilinear Interpolation)
 
-The raw 16×16 API grid can have visible cell boundaries. The frontend applies a bilinear interpolation pass (`smoothGrid()`) that upsamples by factor 2:
-
-```
-   Original 4×4 grid          Interpolated 7×7 grid
-   ┌──┬──┬──┬──┐              ┌──┬──┬──┬──┬──┬──┬──┐
-   │  │  │  │  │              │  │  │  │  │  │  │  │
-   ├──┼──┼──┼──┤     ×2       ├──┼──┼──┼──┼──┼──┼──┤
-   │  │  │  │  │    ──────▶   │  │  │  │  │  │  │  │
-   ├──┼──┼──┼──┤              ├──┼──┼──┼──┼──┼──┼──┤
-   │  │  │  │  │              │  │  │  │  │  │  │  │
-   ├──┼──┼──┼──┤              ├──┼──┼──┼──┼──┼──┼──┤
-   │  │  │  │  │              │  │  │  │  │  │  │  │
-   └──┴──┴──┴──┘              └──┴──┴──┴──┴──┴──┴──┘
-```
-
-Each new cell's temperature is the weighted average of its four surrounding raw data points, producing a smoother visual gradient.
-
-## Re-Fetch Triggers
-
-The heatmap re-fetches in three scenarios:
-
-1. **Camera settles** — When the camera finishes moving (`camera.moveEnd`), `lastFetchPosRef` is reset and `heatmapSettleKey` is incremented. The fetch effect depends on `heatmapSettleKey`, so a fresh fetch always occurs at the settled position. This is the primary mechanism after a geocode search.
-
-2. **Camera pans > 0.3°** — When the camera moves more than 0.3° (~33 km) from the last fetch position. This covers gradual panning. Tracked via `lastFetchPosRef`.
-
-3. **Heatmap toggled on** — Fires immediately at the current center location.
-
-## Why ClassificationPrimitive Instead of Entity Rectangle
-
-| Approach | Terrain | 3D Tiles | Issue |
-|----------|---------|----------|-------|
-| `Entity` + `rectangle` with `height: 0` | ✅ | ❌ | Under buildings, clips into terrain |
-| `Entity` + `rectangle` + `classificationType` cast | ❌ | ❌ | Resium doesn't forward the property reliably |
-| `ClassificationPrimitive` (current) | ✅ | ✅ | Correctly overlays on all surfaces |
-
-`ClassificationPrimitive` is Cesium's low-level primitive designed specifically for this use case. It projects geometry onto the surface of terrain, 3D Tiles, or both — unlike Entity rectangles which sit at a fixed height on the terrain.
+The raw 8×8 API grid is upsampled by factor 2 to 15×15 using bilinear interpolation (`smoothGrid()`). Each new cell is the weighted average of its four surrounding raw data points.
 
 ## Color Palette
 
@@ -110,71 +119,55 @@ Low  → #fff33b (pale yellow)
 High → #e93e3a (deep red)
 ```
 
-Colors are interpolated linearly between stops. Semi-transparent (alpha 200/255) so buildings remain visible underneath.
-
-## OpenWeatherMap Integration
-
-The API route checks for `OPENWEATHERMAP_API_KEY` in `.env`. When present, it fetches real per-cell temperature data from the One Call API 3.0 instead of generating synthetic values.
-
-### Setup
-
-```bash
-# .env
-OPENWEATHERMAP_API_KEY=your_key_here
-```
-
-### Fallback Behavior
-
-If no API key is set, the endpoint generates demo data with a synthetic temperature gradient. Real API calls use `AbortSignal.timeout(4000)` per cell — if a cell fails (timeout/error), it defaults to 20°C for that cell instead of failing the entire request.
-
-### Rate Limiting
-
-A 16×16 grid makes up to 256 API calls per fetch. OpenWeatherMap's free tier allows 1,000 calls/day. To reduce usage:
-- Reduce grid to 8×8 (64 calls) via `rows=8&cols=8` in `fetchTempPoints`
-- Increase spacing to cover larger area with fewer cells
+Colors interpolated linearly between stops. Alpha 200/255 so buildings remain visible underneath.
 
 ## 3D Tiles Performance
 
-### Draco Compression
-
-CesiumJS 1.116+ natively supports Draco-compressed glTF 2.0 tiles. The Draco decoder is bundled in the Cesium Workers and loaded automatically from:
-
-```
-CESIUM_BASE_URL/Workers/
-```
-
-**Client side**: No code changes needed — Cesium auto-detects and decompresses Draco content.
-
-**Source side**: To compress your own 3D Tiles, use `gltf-pipeline`:
-```bash
-npx gltf-pipeline -i model.gltf -o model_draco.gltf -d
-```
-
-### Tileset Options
-
-The `Cesium3DTileset` is configured with:
 - `maximumScreenSpaceError={4}` — high-detail rendering
-- `cullRequestsWhileMoving` — skips tile requests while camera is in motion for smoother interaction
+- `cullRequestsWhileMoving` — skips tile requests while camera is in motion
+- `globe.enableLighting = true` + `sun.show = true` — auto day/night cycle
+
+## ClassificationPrimitive vs Entity Rectangle
+
+| Approach | Terrain | 3D Tiles | Issue |
+|----------|---------|----------|-------|
+| `Entity` + `rectangle` with `height: 0` | ✅ | ❌ | Under buildings |
+| `ClassificationPrimitive` (current) | ❌ | ✅ | Buildings only — `CESIUM_3D_TILE` |
 
 ## Key Files
 
-- `components/CesiumMap.tsx` — HeatMap button, fetch logic, `ClassificationPrimitive` management, smoothing, camera tracking
-- `app/api/temperature/route.ts` — Temperature data source (OpenWeatherMap or demo)
+- `components/CesiumMap.tsx` — HeatMap button, fetch logic, `ClassificationPrimitive` management, smoothing, camera tracking, My Location button, Like button
+- `app/api/temperature/route.ts` — Temperature data source with rate limiting and caching
 - `docs/heatmap-implementation.md` — This file
+- `app/viewer/page.tsx` — Viewer page with toolbar (Dashboard, Search, 3D toggle, My Location, Like), query-param navigation, sign-in prompt
+
+## Related Features
+
+### My Location Button
+
+Uses `navigator.geolocation.getCurrentPosition` with high accuracy, reverse-geocodes via Nominatim, and calls `flyToLocation` + sets `currentCity` so Like/HeatMap work immediately. Button shows "Locating…" with disabled state during request.
+
+### Like / Save Locations
+
+- Logged-in users: likes/saves are persisted to PostgreSQL via API routes (`/api/locations`, `/api/locations/[id]`)
+- Anonymous users: a large centered bubble appears with "Sign in to save this location" + a "Sign In / Register" button linking to `/login`
+
+### Dashboard → Viewer Navigation
+
+Clicking "Fly" on a liked or saved location in the dashboard navigates to `/viewer?lat=X&lng=Y&name=Z`. The viewer reads these query params on mount and flies to the location.
+
+### Export Data
+
+The (removed) Quick Actions section previously had an Export Data button that downloaded locations and notes as a JSON file.
 
 ## Troubleshooting
 
-**"Please search a location to apply heatmap to."**
-No location data available. Search for a city or fly to a location first.
+**"Please search a location to apply heatmap to."** — Search for a city or fly to a location first.
 
-**Heatmap not visible**
-The heatmap uses `ClassificationType.CESIUM_3D_TILE` — it only renders on 3D models, not terrain. Verify the 3D tileset is loaded (`sceneState` shows "ready") and buildings are visible in the current view. If no buildings are nearby, the overlay has nothing to project onto.
+**Heatmap not visible** — Uses `ClassificationType.CESIUM_3D_TILE` — only renders on 3D models, not terrain. Verify tileset is loaded.
 
-**Heatmap still shows old city data after searching a new one**
-This was a race condition with stale API responses. Fixed via `fetchIdRef` — stale responses are now discarded. Verify you're running the latest code.
+**Heatmap still shows old city data** — Stale-response race condition; verify `fetchIdRef` logic is working in latest code.
 
-**Colors look wrong / too blocky**
-The 16×16 grid with 2× smoothing produces 31×31 cells. If still blocky, increase `GRID_ROWS`/`GRID_COLS` or `SMOOTH_FACTOR` in `CesiumMap.tsx`.
+**No real data shown** — Set `OPENWEATHERMAP_API_KEY` in `.env`. Without it, demo synthetic data is used.
 
-**No real data shown**
-Set `OPENWEATHERMAP_API_KEY` in `.env`. Without it, demo synthetic data is used.
+**Rate limit warnings in console** — Normal. The app degrades gracefully by estimating cells from nearby data. Increase `RPM_LIMIT` if you upgrade to a higher-tier OWM plan.
