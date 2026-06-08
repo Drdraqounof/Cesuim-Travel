@@ -13,6 +13,41 @@ type ApiResponse = {
   cols: number;
 };
 
+// ── rate limiter (sliding window, ≤55 RPM) ──────────────────────
+const requestTimestamps: number[] = [];
+const RPM_LIMIT = 55;
+const WINDOW_MS = 60_000;
+let rateLimitWarned = false;
+
+function checkRateLimit(): boolean {
+  const now = Date.now();
+  while (requestTimestamps.length > 0 && requestTimestamps[0] < now - WINDOW_MS) {
+    requestTimestamps.shift();
+  }
+  if (requestTimestamps.length >= RPM_LIMIT) return false;
+  requestTimestamps.push(now);
+  return true;
+}
+
+// ── in-memory cache (grid results keyed by location) ────────────
+const cache = new Map<string, { points: TempPoint[]; ts: number }>();
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
+function cacheKey(lat: number, lng: number, rows: number, cols: number, spacing: number): string {
+  return `${Math.round(lat * 100) / 100},${Math.round(lng * 100) / 100},${rows},${cols},${spacing}`;
+}
+
+function getCached(key: string): TempPoint[] | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.points;
+}
+
+// ── route handler ───────────────────────────────────────────────
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -30,7 +65,15 @@ export async function GET(request: Request) {
     let points: TempPoint[];
 
     if (apiKey) {
-      points = await fetchFromOpenWeatherMap(lat, lng, rows, cols, spacing, apiKey);
+      const key = cacheKey(lat, lng, rows, cols, spacing);
+      const cached = getCached(key);
+      if (cached) {
+        points = cached;
+      } else {
+        points = await fetchFromOpenWeatherMap(lat, lng, rows, cols, spacing, apiKey);
+        cache.set(key, { points, ts: Date.now() });
+        rateLimitWarned = false;
+      }
     } else {
       points = generateDemoPoints(lat, lng, rows, cols, spacing);
     }
@@ -42,6 +85,7 @@ export async function GET(request: Request) {
   }
 }
 
+// ── OpenWeatherMap with per-cell rate limiting ──────────────────
 async function fetchFromOpenWeatherMap(
   centerLat: number,
   centerLng: number,
@@ -51,12 +95,24 @@ async function fetchFromOpenWeatherMap(
   apiKey: string,
 ): Promise<TempPoint[]> {
   const results: TempPoint[] = [];
+  const succeeded: { r: number; c: number; tempC: number }[] = [];
 
   for (let r = 0; r < rows; r++) {
     const rowLat = centerLat + (r - Math.floor(rows / 2)) * spacing;
 
     for (let c = 0; c < cols; c++) {
       const colLng = centerLng + (c - Math.floor(cols / 2)) * spacing;
+
+      if (!checkRateLimit()) {
+        if (!rateLimitWarned) {
+          console.warn('[temperature] Rate limit reached — filling remaining cells with estimates');
+          rateLimitWarned = true;
+        }
+        // Estimate from nearby successful cells or use fallback
+        const estimate = estimateCellTemp(rowLat, colLng, succeeded, centerLat, centerLng);
+        results.push({ latitude: rowLat, longitude: colLng, tempC: estimate });
+        continue;
+      }
 
       try {
         const resp = await fetch(
@@ -66,16 +122,21 @@ async function fetchFromOpenWeatherMap(
 
         if (!resp.ok) {
           console.warn('[temperature] OWM request failed', resp.status, resp.statusText);
-          results.push({ latitude: rowLat, longitude: colLng, tempC: 20 });
+          const tempC = 20;
+          results.push({ latitude: rowLat, longitude: colLng, tempC });
+          succeeded.push({ r, c, tempC });
           continue;
         }
 
         const data = await resp.json();
         const tempC = Math.round(data.current?.temp ?? 20);
         results.push({ latitude: rowLat, longitude: colLng, tempC });
+        succeeded.push({ r, c, tempC });
       } catch {
         console.warn('[temperature] OWM fetch error for cell', r, c);
-        results.push({ latitude: rowLat, longitude: colLng, tempC: 20 });
+        const tempC = 20;
+        results.push({ latitude: rowLat, longitude: colLng, tempC });
+        succeeded.push({ r, c, tempC });
       }
     }
   }
@@ -83,6 +144,30 @@ async function fetchFromOpenWeatherMap(
   return results;
 }
 
+/** Estimate a cell's temperature from nearby successfully-fetched cells. */
+function estimateCellTemp(
+  lat: number,
+  lng: number,
+  succeeded: { r: number; c: number; tempC: number }[],
+  centerLat: number,
+  centerLng: number,
+): number {
+  if (succeeded.length === 0) return 20;
+
+  // Weighted by inverse distance
+  let weightedSum = 0;
+  let weightTotal = 0;
+  for (const s of succeeded) {
+    const d = Math.hypot(s.r, s.c);
+    if (d < 0.01) return s.tempC;
+    const w = 1 / d;
+    weightedSum += s.tempC * w;
+    weightTotal += w;
+  }
+  return Math.round(weightedSum / weightTotal);
+}
+
+// ── demo fallback ───────────────────────────────────────────────
 function generateDemoPoints(
   centerLat: number,
   centerLng: number,

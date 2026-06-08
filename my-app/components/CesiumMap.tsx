@@ -406,9 +406,9 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
     return result;
   }
 
-  const GRID_ROWS = 16;
-  const GRID_COLS = 16;
-  const GRID_SPACING = 0.015;
+  const GRID_ROWS = 8;
+  const GRID_COLS = 8;
+  const GRID_SPACING = 0.025;
   const SMOOTH_FACTOR = 2;
 
   const fetchTempPoints = async (centerLat?: number, centerLng?: number) => {
