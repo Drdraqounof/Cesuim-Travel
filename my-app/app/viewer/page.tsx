@@ -24,6 +24,7 @@ function ViewerInner() {
   const [modelsVisible, setModelsVisible] = useState(true);
   const [likeStatus, setLikeStatus] = useState<string>("");
   const [locatingMe, setLocatingMe] = useState(false);
+  const [signInPrompt, setSignInPrompt] = useState(false);
   const searchParams = useSearchParams();
 
   const handleLocationFound = (latitude: number, longitude: number, name: string) => {
@@ -53,8 +54,8 @@ function ViewerInner() {
 
     const loggedIn = await isLoggedIn();
     if (!loggedIn) {
-      setLikeStatus("Sign in to save this location.");
-      setTimeout(() => setLikeStatus(""), 3000);
+      setSignInPrompt(true);
+      setTimeout(() => setSignInPrompt(false), 6000);
       return;
     }
 
@@ -223,6 +224,21 @@ function ViewerInner() {
           <CesiumMap ref={cesiumRef} />
         </Suspense>
       </div>
+
+      {signInPrompt && (
+        <div className="fixed bottom-8 left-1/2 z-40 -translate-x-1/2">
+          <div className="rounded-2xl border border-pink-400/30 bg-slate-900/95 px-8 py-5 text-center shadow-2xl shadow-pink-500/20 backdrop-blur-2xl">
+            <p className="text-base font-semibold text-white">Sign in to save this location</p>
+            <p className="mt-1 text-sm text-pink-200/70">Keep track of your favorite places</p>
+            <a
+              href="/login"
+              className="mt-4 inline-block rounded-xl bg-pink-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-500/30 transition hover:bg-pink-400"
+            >
+              Sign In / Register
+            </a>
+          </div>
+        </div>
+      )}
 
       {likeStatus && (
         <div className="pointer-events-none fixed bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-950/80 px-4 py-2 text-xs text-slate-300 backdrop-blur-xl">
