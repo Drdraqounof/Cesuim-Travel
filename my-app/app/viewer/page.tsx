@@ -121,86 +121,106 @@ function ViewerInner() {
       {/* Top toolbar — sits above the map, no overlap */}
       <header className="relative z-20 shrink-0 px-2 pt-2 sm:px-3 sm:pt-3 lg:px-4 lg:pt-4">
         <div className="flex items-center gap-1.5 sm:gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-2 py-2 backdrop-blur-xl sm:px-3 lg:gap-3 lg:px-4 lg:py-3">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-1 whitespace-nowrap text-sm font-medium text-cyan-300 hover:text-cyan-200 transition"
-          >
-            <svg
-              className="h-4 w-4 shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+          <div className="relative group">
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-1 whitespace-nowrap text-sm font-medium text-cyan-300 hover:text-cyan-200 transition"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            <span className="hidden sm:inline">Dashboard</span>
-          </Link>
+              <svg
+                className="h-4 w-4 shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+              <span className="hidden sm:inline">Dashboard</span>
+            </Link>
+            <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs text-slate-200 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+              Back to Dashboard
+            </span>
+          </div>
 
           <div className="flex-1 min-w-0">
             <PlaceSearch onLocationFound={handleLocationFound} />
           </div>
 
-          <button
-            onClick={toggleModels}
-            className="shrink-0 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs uppercase tracking-[0.2em] text-slate-200 backdrop-blur hover:border-cyan-400/50 hover:bg-cyan-400/10 transition-all"
-          >
-            {modelsVisible ? "3D On" : "3D Off"}
-          </button>
+          <div className="relative group">
+            <button
+              onClick={toggleModels}
+              className="shrink-0 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs uppercase tracking-[0.2em] text-slate-200 backdrop-blur hover:border-cyan-400/50 hover:bg-cyan-400/10 transition-all"
+            >
+              {modelsVisible ? "3D On" : "3D Off"}
+            </button>
+            <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs text-slate-200 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+              Toggle 3D building models
+            </span>
+          </div>
 
-          <button
-            onClick={async () => {
-              if (!navigator.geolocation) {
-                setLikeStatus("Geolocation not supported.");
-                return;
-              }
-              setLocatingMe(true);
-              try {
-                const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-                  navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
-                );
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-
-                let name = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+          <div className="relative group">
+            <button
+              onClick={async () => {
+                if (!navigator.geolocation) {
+                  setLikeStatus("Geolocation not supported.");
+                  return;
+                }
+                setLocatingMe(true);
                 try {
-                  const res = await fetch(
-                    `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-                    { headers: { "User-Agent": "TerraScope-Geospatial-Viewer" } }
+                  const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
                   );
-                  const data = await res.json();
-                  if (data?.display_name) name = data.display_name;
-                } catch {}
+                  const lat = pos.coords.latitude;
+                  const lng = pos.coords.longitude;
 
-                const parts = name.split(",");
-                setCurrentCity({ name: parts[0].trim(), latitude: lat, longitude: lng, country: parts.length > 1 ? parts[parts.length - 1].trim() : undefined });
-                cesiumRef.current?.flyToLocation(lat, lng, name);
-              } catch (err) {
-                const msg = err instanceof GeolocationPositionError && err.code === 1
-                  ? "Location permission denied."
-                  : "Could not get location.";
-                setLikeStatus(msg);
-                setTimeout(() => setLikeStatus(""), 3000);
-              } finally {
-                setLocatingMe(false);
-              }
-            }}
-            disabled={locatingMe}
-            className="shrink-0 rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-3 py-2 text-xs font-medium text-emerald-200 transition hover:border-emerald-300/60 hover:bg-emerald-400/20 disabled:opacity-50"
-          >
-            {locatingMe ? "Locating…" : "My Location"}
-          </button>
+                  let name = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                  try {
+                    const res = await fetch(
+                      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+                      { headers: { "User-Agent": "TerraScope-Geospatial-Viewer" } }
+                    );
+                    const data = await res.json();
+                    if (data?.display_name) name = data.display_name;
+                  } catch {}
 
-          <button
-            onClick={handleLikeCurrentLocation}
-            className="shrink-0 rounded-xl border border-pink-300/40 bg-pink-400/10 px-3 py-2 text-xs font-medium text-pink-200 transition hover:border-pink-300/70 hover:bg-pink-400/20"
-          >
-            Like
-          </button>
+                  const parts = name.split(",");
+                  setCurrentCity({ name: parts[0].trim(), latitude: lat, longitude: lng, country: parts.length > 1 ? parts[parts.length - 1].trim() : undefined });
+                  cesiumRef.current?.flyToLocation(lat, lng, name);
+                } catch (err) {
+                  const msg = err instanceof GeolocationPositionError && err.code === 1
+                    ? "Location permission denied."
+                    : "Could not get location.";
+                  setLikeStatus(msg);
+                  setTimeout(() => setLikeStatus(""), 3000);
+                } finally {
+                  setLocatingMe(false);
+                }
+              }}
+              disabled={locatingMe}
+              className="shrink-0 rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-3 py-2 text-xs font-medium text-emerald-200 transition hover:border-emerald-300/60 hover:bg-emerald-400/20 disabled:opacity-50"
+            >
+              {locatingMe ? "Locating…" : "My Location"}
+            </button>
+            <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs text-slate-200 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+              Fly to your current location
+            </span>
+          </div>
+
+          <div className="relative group">
+            <button
+              onClick={handleLikeCurrentLocation}
+              className="shrink-0 rounded-xl border border-pink-300/40 bg-pink-400/10 px-3 py-2 text-xs font-medium text-pink-200 transition hover:border-pink-300/70 hover:bg-pink-400/20"
+            >
+              Like
+            </button>
+            <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs text-slate-200 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+              Save location to favorites
+            </span>
+          </div>
         </div>
       </header>
 

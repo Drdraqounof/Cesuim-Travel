@@ -1,15 +1,27 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Dashboard/Header";
 import StatsCards from "@/components/Dashboard/StatsCards";
 import NotesPanel from "@/components/Dashboard/NotesPanel";
 import SavedLocations from "@/components/Dashboard/SavedLocations";
 import LikedLocations from "@/components/Dashboard/LikedLocations";
+import Tutorial from "@/components/Tutorial";
+import { isTutorialCompleted } from "@/lib/storage";
 import type { SavedLocation } from "@/lib/types";
 
 export default function DashboardPage() {
   const router = useRouter();
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    isTutorialCompleted().then((completed) => {
+      if (!completed) setShowTutorial(true);
+      setChecking(false);
+    });
+  }, []);
 
   const handleFlyTo = (location: SavedLocation) => {
     const params = new URLSearchParams({
@@ -41,6 +53,16 @@ export default function DashboardPage() {
           </div>
         </div>
       </section>
+
+      {checking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+        </div>
+      )}
+
+      {showTutorial && (
+        <Tutorial onComplete={() => setShowTutorial(false)} />
+      )}
     </main>
   );
 }

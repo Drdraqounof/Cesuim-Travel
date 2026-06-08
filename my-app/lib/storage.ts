@@ -3,7 +3,7 @@ import type { Note, SavedLocation, DashboardStats } from "./types";
 const NOTES_KEY = "terrascope_notes";
 const LAST_SEARCH_KEY = "terrascope_last_search";
 
-let sessionUser: { id: string; email: string; name: string | null } | null | undefined = undefined;
+let sessionUser: { id: string; email: string; name: string | null; tutorialCompleted: boolean } | null | undefined = undefined;
 
 async function getSession() {
   if (sessionUser !== undefined) return sessionUser;
@@ -121,6 +121,26 @@ export function updateNote(id: string, content: string): Note | null {
 export function deleteNote(id: string): void {
   const notes = getNotes().filter((n) => n.id !== id);
   localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+}
+
+const TUTORIAL_KEY = "terrascope_tutorial_completed";
+
+export async function isTutorialCompleted(): Promise<boolean> {
+  const user = await getSession();
+  if (user) {
+    return user.tutorialCompleted ?? false;
+  }
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(TUTORIAL_KEY) === "true";
+}
+
+export async function markTutorialCompleted(): Promise<void> {
+  const user = await getSession();
+  if (user) {
+    await fetch("/api/auth/tutorial", { method: "PATCH" });
+  } else if (typeof window !== "undefined") {
+    localStorage.setItem(TUTORIAL_KEY, "true");
+  }
 }
 
 export function getLastSearch(): string | null {
