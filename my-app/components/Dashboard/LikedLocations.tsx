@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getLocations, isLoggedIn } from "@/lib/storage";
+import { getLocations } from "@/lib/storage";
 import type { SavedLocation } from "@/lib/types";
 
-export default function LikedLocations() {
+interface LikedLocationsProps {
+  onFlyTo?: (location: SavedLocation) => void;
+}
+
+export default function LikedLocations({ onFlyTo }: LikedLocationsProps) {
   const [likedLocations, setLikedLocations] = useState<SavedLocation[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -43,15 +47,25 @@ export default function LikedLocations() {
           likedLocations.map((location) => (
             <div
               key={location.id}
-              className="rounded-xl border border-white/5 bg-white/5 p-3"
+              className="group flex items-center justify-between rounded-xl border border-white/5 bg-white/5 p-3"
             >
-              <p className="text-sm font-medium text-white">{location.name}</p>
-              <p className="text-xs text-slate-400 line-clamp-1">
-                {location.description || "Favorited from viewer"}
-              </p>
-              <p className="mt-1 text-[10px] text-slate-500">
-                {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}
-              </p>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-white">{location.name}</p>
+                <p className="text-xs text-slate-400 line-clamp-1">
+                  {location.description || "Favorited from viewer"}
+                </p>
+                <p className="mt-1 text-[10px] text-slate-500">
+                  {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}
+                </p>
+              </div>
+              {onFlyTo && (
+                <button
+                  onClick={() => onFlyTo(location)}
+                  className="shrink-0 rounded-lg bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-300 transition hover:bg-cyan-400/20"
+                >
+                  Fly
+                </button>
+              )}
             </div>
           ))
         )}

@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, Suspense, useState } from "react";
+import { useRef, Suspense, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import PlaceSearch from "../../components/PlaceSearch";
 import CityStatsDisplay, { type CityStats } from "../../components/CityStatsDisplay";
 import type { CesiumMapRef } from "../../components/CesiumMap";
@@ -17,12 +18,13 @@ const CesiumMap = dynamic(() => import("../../components/CesiumMap"), {
   ),
 });
 
-export default function Home() {
+function ViewerInner() {
   const cesiumRef = useRef<CesiumMapRef>(null);
   const [currentCity, setCurrentCity] = useState<CityStats | null>(null);
   const [modelsVisible, setModelsVisible] = useState(true);
   const [likeStatus, setLikeStatus] = useState<string>("");
   const [locatingMe, setLocatingMe] = useState(false);
+  const searchParams = useSearchParams();
 
   const handleLocationFound = (latitude: number, longitude: number, name: string) => {
     const parts = name.split(",");
@@ -83,6 +85,30 @@ export default function Home() {
 
     setLikeStatus("Location added to dashboard favorites.");
   };
+
+  // Navigate from dashboard — fly to location passed via query params
+  useEffect(() => {
+    const lat = searchParams.get("lat");
+    const lng = searchParams.get("lng");
+    const name = searchParams.get("name");
+    if (lat && lng) {
+      const latNum = parseFloat(lat);
+      const lngNum = parseFloat(lng);
+      if (!isNaN(latNum) && !isNaN(lngNum)) {
+        const parts = (name || `${latNum}, ${lngNum}`).split(",");
+        setCurrentCity({
+          name: parts[0].trim(),
+          latitude: latNum,
+          longitude: lngNum,
+          country: parts.length > 1 ? parts[parts.length - 1].trim() : undefined,
+        });
+        requestAnimationFrame(() => {
+          cesiumRef.current?.flyToLocation(latNum, lngNum, name || `${latNum}, ${lngNum}`);
+        });
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   return (
     <main className="relative flex h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,#12314f_0%,#08131e_35%,#02050b_72%)] text-white">
@@ -206,5 +232,19 @@ export default function Home() {
 
       <CityStatsDisplay stats={currentCity} />
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center bg-slate-950 text-sm uppercase tracking-[0.28em] text-slate-300">
+          Loading...
+        </div>
+      }
+    >
+      <ViewerInner />
+    </Suspense>
   );
 }

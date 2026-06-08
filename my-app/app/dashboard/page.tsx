@@ -1,12 +1,45 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import Header from "@/components/Dashboard/Header";
 import StatsCards from "@/components/Dashboard/StatsCards";
 import NotesPanel from "@/components/Dashboard/NotesPanel";
 import SavedLocations from "@/components/Dashboard/SavedLocations";
 import LikedLocations from "@/components/Dashboard/LikedLocations";
+import { getLocations, getNotes } from "@/lib/storage";
+import type { SavedLocation } from "@/lib/types";
 
 export default function DashboardPage() {
+  const router = useRouter();
+
+  const handleFlyTo = (location: SavedLocation) => {
+    const params = new URLSearchParams({
+      lat: location.latitude.toString(),
+      lng: location.longitude.toString(),
+      name: location.name,
+    });
+    router.push(`/viewer?${params.toString()}`);
+  };
+
+  const handleExport = async () => {
+    const locations = await getLocations();
+    const notes = getNotes();
+
+    const data = {
+      exportedAt: new Date().toISOString(),
+      locations,
+      notes,
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `terra-scope-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,#12314f_0%,#08131e_35%,#02050b_72%)] text-white">
       <div className="pointer-events-none absolute inset-0 opacity-60">
@@ -23,8 +56,8 @@ export default function DashboardPage() {
             <NotesPanel />
           </div>
           <div className="space-y-6">
-            <LikedLocations />
-            <SavedLocations />
+            <LikedLocations onFlyTo={handleFlyTo} />
+            <SavedLocations onFlyTo={handleFlyTo} />
 
             <div className="rounded-[24px] border border-white/10 bg-slate-950/60 p-5 backdrop-blur">
               <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
@@ -51,7 +84,10 @@ export default function DashboardPage() {
                   </svg>
                   Open 3D View
                 </a>
-                <button className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-white/30 hover:bg-white/10">
+                <button
+                  onClick={handleExport}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-white/30 hover:bg-white/10"
+                >
                   <svg
                     className="h-4 w-4"
                     fill="none"
