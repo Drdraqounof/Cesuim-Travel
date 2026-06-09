@@ -37,6 +37,21 @@ const cesiumBaseUrl = process.env.NODE_ENV === "production"
 
 const FALLBACK_DOWNTOWN_ASSET_ID = 96188;
 
+const COUNTRY_ALIASES: Record<string, string> = {
+  "United States": "America",
+  "United States of America": "America",
+  "USA": "America",
+  "UK": "United Kingdom",
+  "South Korea": "South Korea",
+  "Russia": "Russia",
+  "UAE": "UAE",
+  "Türkiye": "Türkiye",
+};
+
+function normalizeCountry(name: string): string {
+  return COUNTRY_ALIASES[name] || name;
+}
+
 export interface CesiumMapRef {
   flyToDowntown: () => void;
   selectView: (viewId: string) => void;
@@ -95,8 +110,14 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
   const [heatmapSuccess, setHeatmapSuccess] = useState("");
   const [tempPoints, setTempPoints] = useState<Array<{latitude:number;longitude:number;tempC:number}>>([]);
   const [centerLocation, setCenterLocation] = useState<{lat:number;lng:number} | null>(null);
+  const [centerPlaceName, setCenterPlaceName] = useState<string | null>(null);
+  const [centerFullAddress, setCenterFullAddress] = useState<string | null>(null);
+  const [centerElevation, setCenterElevation] = useState<number | null>(null);
+  const [centerFact, setCenterFact] = useState<string | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
   const [locating, setLocating] = useState(false);
   const locationDebounceRef = useRef<number | null>(null);
+  const geocodeDebounceRef = useRef<number | null>(null);
   const initialViewSetRef = useRef(false);
   const heatmapPrimitivesRef = useRef<ClassificationPrimitive[]>([]);
   const lastFetchPosRef = useRef<{lat:number;lng:number} | null>(null);
@@ -567,6 +588,105 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
     };
   }, [viewerRef.current]);
 
+  useEffect(() => {
+    if (!centerLocation) {
+      setCenterPlaceName(null);
+      setCenterFullAddress(null);
+      setCenterElevation(null);
+      setCenterFact(null);
+      setShowDetails(false);
+      return;
+    }
+
+    if (geocodeDebounceRef.current) {
+      clearTimeout(geocodeDebounceRef.current);
+    }
+
+    geocodeDebounceRef.current = window.setTimeout(async () => {
+      try {
+        const { lat, lng } = centerLocation;
+        let nameFromFacts: string | null = null;
+
+        const [geoRes, elevRes, factRes] = await Promise.all([
+          fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`,
+            { headers: { "User-Agent": "TerraScope-Geospatial-Viewer" } }
+          ),
+          fetch(
+            `https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`
+          ),
+          fetch(`/api/facts?lat=${lat}&lng=${lng}`),
+        ]);
+
+        if (factRes.ok) {
+          const factData = await factRes.json();
+          if (factData?.fact) {
+            setCenterFact(factData.fact);
+            if (factData?.country && factData?.name) {
+              nameFromFacts = `${normalizeCountry(factData.country)}: ${factData.name}`;
+            } else if (factData?.name) {
+              nameFromFacts = factData.name;
+            }
+          } else {
+            setCenterFact(null);
+          }
+        } else {
+          setCenterFact(null);
+        }
+
+        if (nameFromFacts) {
+          setCenterPlaceName(nameFromFacts);
+          if (geoRes.ok) {
+            const geoData = await geoRes.json();
+            setCenterFullAddress(geoData?.display_name ?? null);
+          }
+        } else if (geoRes.ok) {
+          const geoData = await geoRes.json();
+          setCenterFullAddress(geoData?.display_name ?? null);
+          if (geoData?.address) {
+            const addr = geoData.address;
+            const city = addr.city || addr.town || addr.village || addr.county || addr.state || "";
+            const country = addr.country ? normalizeCountry(addr.country) : "";
+            if (country && city) {
+              setCenterPlaceName(`${country}: ${city}`);
+            } else if (geoData.display_name) {
+              const parts = geoData.display_name.split(",").map((s: string) => s.trim());
+              const countryPart = parts.length > 1 ? normalizeCountry(parts[parts.length - 1]) : "";
+              const cityPart = parts.length > 2 ? parts[parts.length - 2] : parts[0];
+              setCenterPlaceName(`${countryPart}: ${cityPart}`);
+            } else {
+              setCenterPlaceName(null);
+            }
+          } else if (geoData?.display_name) {
+            const parts = geoData.display_name.split(",").map((s: string) => s.trim());
+            const countryPart = parts.length > 1 ? normalizeCountry(parts[parts.length - 1]) : "";
+            const cityPart = parts.length > 2 ? parts[parts.length - 2] : parts[0];
+            setCenterPlaceName(`${countryPart}: ${cityPart}`);
+          } else {
+            setCenterPlaceName(null);
+          }
+        }
+
+        if (elevRes.ok) {
+          const elevData = await elevRes.json();
+          if (elevData.results?.[0]?.elevation != null) {
+            setCenterElevation(Math.round(elevData.results[0].elevation));
+          } else {
+            setCenterElevation(null);
+          }
+        }
+      } catch {
+        // Silent fail — center display stays on coordinates only
+      }
+    }, 1000);
+
+    return () => {
+      if (geocodeDebounceRef.current) {
+        clearTimeout(geocodeDebounceRef.current);
+      }
+    };
+  }, [centerLocation]);
+
   if (!tilesetSource) {
     return (
       <div className="flex min-h-[70svh] items-center justify-center rounded-[28px] border border-white/10 bg-slate-950 px-6 text-center text-slate-200 shadow-2xl shadow-slate-950/40">
@@ -639,11 +759,48 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
       </div>
 
       {/* Center location — bottom-left, always visible */}
-      <div className="pointer-events-none absolute bottom-4 left-4 z-10 rounded-lg border border-white/10 bg-black/50 px-3 py-1.5 text-xs text-slate-300 backdrop-blur">
+      <div className="absolute bottom-4 left-4 z-10 rounded-lg border border-white/10 bg-black/50 px-3 py-1.5 text-xs text-slate-300 backdrop-blur">
         {locating ? (
           <span>Locating…</span>
         ) : centerLocation ? (
-          <span>{centerLocation.lat.toFixed(5)}, {centerLocation.lng.toFixed(5)}</span>
+          showDetails && centerFullAddress ? (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-white">{centerFullAddress}</span>
+              <span>
+                {centerElevation !== null && <>{centerElevation}m · </>}
+                {centerLocation.lat.toFixed(5)}, {centerLocation.lng.toFixed(5)}
+              </span>
+              <button
+                onClick={() => setShowDetails(false)}
+                className="self-start rounded bg-white/10 px-2 py-0.5 text-[10px] text-slate-400 hover:text-white transition"
+              >
+                Less Details
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-0.5">
+              {centerPlaceName && (
+                <span className="text-sm font-medium text-white">{centerPlaceName}</span>
+              )}
+              <span>
+                {centerElevation !== null && <>{centerElevation}m · </>}
+                {centerLocation.lat.toFixed(5)}, {centerLocation.lng.toFixed(5)}
+              </span>
+              {centerFact && (
+                <span className="max-w-56 pt-0.5 text-[10px] italic leading-tight text-slate-400/80">
+                  {centerFact}
+                </span>
+              )}
+              {centerFullAddress && (
+                <button
+                  onClick={() => setShowDetails(true)}
+                  className="self-start rounded bg-white/10 px-2 py-0.5 mt-0.5 text-[10px] text-slate-400 hover:text-white transition"
+                >
+                  More Details
+                </button>
+              )}
+            </div>
+          )
         ) : (
           <span>Center location unknown</span>
         )}

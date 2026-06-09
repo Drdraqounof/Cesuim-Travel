@@ -6,8 +6,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import PlaceSearch from "../../components/PlaceSearch";
 import CityStatsDisplay, { type CityStats } from "../../components/CityStatsDisplay";
+import Tutorial from "../../components/Tutorial";
 import type { CesiumMapRef } from "../../components/CesiumMap";
-import { getLocations, saveLocation, setLocationLiked, isLoggedIn } from "@/lib/storage";
+import { getLocations, saveLocation, setLocationLiked, isLoggedIn, isTutorialCompleted } from "@/lib/storage";
 
 const CesiumMap = dynamic(() => import("../../components/CesiumMap"), {
   ssr: false,
@@ -25,7 +26,16 @@ function ViewerInner() {
   const [likeStatus, setLikeStatus] = useState<string>("");
   const [locatingMe, setLocatingMe] = useState(false);
   const [signInPrompt, setSignInPrompt] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [checkingTutorial, setCheckingTutorial] = useState(true);
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    isTutorialCompleted().then((completed) => {
+      if (!completed) setShowTutorial(true);
+      setCheckingTutorial(false);
+    });
+  }, []);
 
   const handleLocationFound = (latitude: number, longitude: number, name: string) => {
     const parts = name.split(",");
@@ -267,6 +277,16 @@ function ViewerInner() {
       )}
 
       <CityStatsDisplay stats={currentCity} />
+
+      {checkingTutorial && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+        </div>
+      )}
+
+      {showTutorial && (
+        <Tutorial onComplete={() => setShowTutorial(false)} />
+      )}
     </main>
   );
 }

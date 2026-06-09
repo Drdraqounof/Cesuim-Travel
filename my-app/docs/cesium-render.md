@@ -1,37 +1,26 @@
-**Cesium Rendering — Architecture Overview**
+# Cesium Rendering — Architecture Overview
 
-Summary
+## Summary
 - The 3D viewer is built on Cesium + Resium (React bindings) inside a Next.js app.
-- Rendering is split across `CesiumMapShell.tsx` (dynamic wrapper) and `CesiumMap.tsx` (core component).
+- Core component: `CesiumMap.tsx` — handles viewer, terrain, 3D tiles, camera, location tracking, heatmap.
 
-Stack
-- `cesium` — core 3D globe engine (WebGL, terrain, tilesets, entities)
-- `resium` — declarative React wrappers: `<Viewer>`, `<Cesium3DTileset>`, `<Entity>`
-- `next/dynamic` with `ssr: false` — Cesium requires browser APIs so it's loaded client-only
+## Stack
+- `cesium` — core 3D globe engine (WebGL, terrain, tilesets)
+- `resium` — declarative React wrappers: `<Viewer>`, `<Cesium3DTileset>`
+- `next/dynamic` with `ssr: false` — Cesium requires browser APIs, loaded client-only
 
-Dynamic loading: `CesiumMapShell.tsx`
+## Dynamic Loading
 ```
-components/CesiumMapShell.tsx
-  └─ dynamic(() => import("./CesiumMap"), { ssr: false })
-      └─ CesiumMap (forwardRef component)
+app/viewer/page.tsx
+  └─ dynamic(() => import("../../components/CesiumMap"), { ssr: false })
+      └─ CesiumMap (forwardRef component, ~850 lines)
 ```
-`CesiumMapShell` wraps the heavy `CesiumMap` in a `next/dynamic` import so the server never renders Cesium code. A loading fallback is shown while the chunk loads.
 
-Cesium assets (`public/cesium/`)
-- `scripts/copy-cesium-assets.mjs` copies `Assets/`, `ThirdParty/`, `Workers/`, `Widgets/` from `node_modules/cesium/Build/Cesium` to `public/cesium`.
-- Runs via `postinstall` and `predev`/`prebuild`.
-- `CESIUM_BASE_URL` is set to `"/cesium"` at module level:
-  ```ts
-  (globalThis as any).CESIUM_BASE_URL = "/cesium";
-  ```
+## Core Component: `CesiumMap.tsx`
 
-Core component: `CesiumMap.tsx`
-
-**1. Viewer**
-
+### 1. Viewer
 ```tsx
 <Viewer
-  ref={viewerRef}
   full
   animation={false}
   baseLayerPicker={false}
@@ -47,95 +36,103 @@ Core component: `CesiumMap.tsx`
   timeline={false}
 />
 ```
-Default UI widgets are disabled. `shouldAnimate` enables clock-based animation.
+Default UI widgets disabled. `shouldAnimate` enables clock-based animation.
 
-**2. Terrain**
+### 2. Terrain
+Cesium World Terrain loaded via `createWorldTerrainAsync()`. Passed to `<Viewer terrainProvider>`. Without Ion token, terrain stays flat.
 
-Cesium World Terrain is loaded asynchronously with `createWorldTerrainAsync()`. The provider is stored in React state and passed to `<Viewer terrainProvider={...}>`. If no Ion token is set, terrain stays flat (default).
-
-**3. 3D Tiles (downtown model)**
-
+### 3. 3D Tiles (downtown model)
 ```tsx
 <Cesium3DTileset
   url={tilesetSource}
   maximumScreenSpaceError={4}
+  cullRequestsWhileMoving
   onReady={handleTilesetReady}
   onInitialTilesLoad={handleInitialTilesLoad}
   onError={handleTilesetError}
   onTileFailed={handleTilesetError}
 />
 ```
-- `tilesetSource` is either a direct `NEXT_PUBLIC_3DTILES_URL` or an `IonResource.fromAssetId()` using `NEXT_PUBLIC_DOWNTOWN_ASSET_ID` (default `96188`).
-- `maximumScreenSpaceError: 4` controls LOD quality.
-- On ready, the tileset's bounding sphere is extracted and used for camera fly-to views.
-- Visibility is toggled with `modelsVisible` state (exposed via imperative handle).
+- `tilesetSource` = direct URL (`NEXT_PUBLIC_3DTILES_URL`) or Ion asset (`NEXT_PUBLIC_DOWNTOWN_ASSET_ID`, default `96188` — downtown Los Angeles).
+- `maximumScreenSpaceError: 4` for high-detail LOD.
+- Visibility toggled via `modelsVisible` state, exposed through imperative handle.
 
-**4. Camera system**
+### 4. Camera System
 
-Fly-to locations:
-- `flyToDowntown` — zooms to the tileset bounding sphere with a `HeadingPitchRange`.
-- `flyToLocation(lat, lng)` — two-stage fly: first to high altitude (50,000 km) showing the globe, then down to 500 m above terrain.
-- Downtown presets (overview, north, south, street level) — each defined as a `HeadingPitchRange` offset from the bounding sphere center.
+**Fly-to modes:**
+- `flyToDowntown()` — zooms to 3D tileset bounding sphere.
+- `flyToLocation(lat, lng)` — two-stage: high altitude (50,000 km) → globe spin → 500m above terrain.
+- Preset views: overview, north, south, street — each a `HeadingPitchRange` offset.
 
-Camera constraints:
-- `setupCameraConstraints()` subscribes to `viewer.camera.changed`.
-- If `sampleHeight` shows the camera is below terrain + 10 m threshold, the camera is corrected upward.
+**Constraints:**
+- `setupCameraConstraints()` subscribes to `camera.changed`. If `sampleHeight` puts camera below terrain + 10m threshold, camera is corrected upward.
 
-Underground camera handling:
-- Logs warning with terrain height, camera height, correction amount and coordinates whenever it triggers.
+**Center tracking:**
+- Debounced `camera.changed` listener (500ms). Picks viewport center via `scene.globe.pick(ray)`. Falls back to camera position if no terrain hit.
 
-Center-location tracking:
-- On camera change (debounced 500 ms), picks the center of the viewport via `scene.globe.pick(ray)`.
-- If no terrain intersection is found, falls back to camera position.
-- Then calls `/api/geocode` to reverse-geocode the coordinates.
+### 5. Location Info Overlay (bottom-left)
 
-**5. Entity overlay (temperature example)**
+As the user pans, the overlay updates with (see `docs/location-info-overlay.md`):
 
-Temperature data is rendered as Cesium `<Entity>` primitives with `cylinder` geometry:
-- Height mapped from temperature (50–500 m range).
-- Color mapped via `tempToColor()`: blue → yellow → red.
-- Labels show temperature in °C with `LabelStyle.FILL_AND_OUTLINE` and black outline for readability.
-- `distanceDisplayCondition` hides labels beyond 200 km.
+```
+Japan: Tokyo
+23m · 35.67347, 139.76689
+Tokyo was originally a small fishing village called Edo...
+[More Details]
+```
 
-Entities are rendered declaratively inside `<Viewer>` as children — Resium automatically manages their lifecycle.
+- **Name**: from Nominatim reverse geocode, formatted as `Country: City`.
+- **Elevation**: from open-elevation.com API.
+- **Fact**: from `/api/facts` endpoint (hardcoded DB for famous places, OpenAI for others).
+- **More Details**: toggles full Nominatim address string.
 
-**6. Imperative handle (`CesiumMapRef`)**
+All three fetches run in parallel via `Promise.all`, debounced 1s after camera settles.
 
-Exposed methods via `useImperativeHandle`:
+### 6. Heatmap Overlay
+Toggleable temperature heatmap using Cesium `ClassificationPrimitive` with `RectangleGeometry`, classified against `CESIUM_3D_TILE`. See `docs/heatmap-implementation.md`.
+
+### 7. Imperative Handle (`CesiumMapRef`)
+
 | Method | Action |
 |---|---|
 | `flyToDowntown()` | Zoom to downtown tileset |
-| `selectView(id)` | Switch between predefined camera angles |
+| `selectView(id)` | Switch between preset camera angles |
 | `flyToLocation(lat, lng, name?)` | Two-stage fly-to |
-| `toggleModels()` | Show/hide the 3D tileset |
+| `toggleModels()` | Show/hide 3D tileset |
 | `getModelsVisible()` | Returns tileset visibility |
 
-**7. State management**
+### 8. State Management
 
-Component state is split into:
-- `SceneState` — `"idle" | "loading" | "ready" | "error"` for the tileset lifecycle.
-- `terrainProvider` — async-loaded terrain instance.
-- `downtownBounds` — bounding sphere from the tileset, used for camera framing.
-- `downtownLocation` / `realLocation` — coordinates from tileset bounding sphere and geocoding API.
-- `elevationData` — combined Google + Cesium terrain elevation comparison.
-- `centerLocation` / `centerAddress` — current viewport center with reverse-geocoded address.
-- `modelsVisible` — tileset visibility toggle.
-- `showTemps` / `tempPoints` — temperature overlay toggle and data.
+Key state variables:
+- `sceneState` — `"idle" | "loading" | "ready" | "error"`
+- `terrainProvider` — async-loaded terrain instance
+- `downtownBounds` — tileset bounding sphere for camera framing
+- `downtownLocation` — coordinates from tileset bounding sphere
+- `centerLocation` / `centerPlaceName` / `centerElevation` / `centerFact` / `centerFullAddress` — current viewport center info
+- `showDetails` — toggles expanded address view
+- `modelsVisible` — tileset visibility
+- `showHeatmap` / `tempPoints` — heatmap overlay state
 
-Key configuration (env vars)
-- `NEXT_PUBLIC_CESIUM_ION_TOKEN` — Cesium Ion access token (for terrain and Ion-hosted assets).
-- `NEXT_PUBLIC_3DTILES_URL` — direct 3D Tiles endpoint (alternative to Ion).
-- `NEXT_PUBLIC_DOWNTOWN_ASSET_ID` — Ion asset ID (default `96188`).
+### 9. Key Configuration (env vars)
 
-Rendering flow
-1. Page renders `CesiumMapShell` → dynamic import of `CesiumMap`.
-2. `CesiumMap` mounts `<Viewer>` with optional terrain provider.
-3. `<Cesium3DTileset>` loads from Ion or URL → on ready, bounding sphere and location are extracted.
-4. Camera initializes to a global view (`flyHome(1.0)`) then user can fly to downtown.
-5. On camera move (debounced), center location is picked and reverse-geocoded.
-6. Temperature overlay (toggle) renders cylinder entities.
+- `NEXT_PUBLIC_CESIUM_ION_TOKEN` — Cesium Ion access token
+- `NEXT_PUBLIC_3DTILES_URL` — direct 3D Tiles endpoint
+- `NEXT_PUBLIC_DOWNTOWN_ASSET_ID` — Ion asset ID (default `96188`)
+- `OPENWEATHERMAP_API_KEY` — for live temperature data (optional)
+- `OPENAI_API_KEY` — for AI-generated location facts (optional)
 
-Viewer routes
-- `/viewer` — main 3D viewer page using `CesiumMapShell`.
+## Viewer Page (`app/viewer/page.tsx`)
 
-If you want, I can document specific subsystems in more detail (e.g. camera constraints, terrain sampling, or adding new entity overlays).
+- **Toolbar**: Dashboard link, PlaceSearch, 3D toggle, My Location (GPS), Like button.
+- **CityStatsDisplay**: Fixed bottom-left panel showing searched location's name, country, lat/lng, elevation.
+- **Tutorial**: Shows on first visit if not completed (persisted via DB for logged-in users or localStorage for anonymous).
+- **Query param navigation**: Accepts `?lat=X&lng=Y&name=Z` from dashboard "Fly" button.
+
+## Rendering Flow
+
+1. Viewer page renders → dynamic import of `CesiumMap`.
+2. `CesiumMap` mounts `<Viewer>` with optional Cesium World Terrain.
+3. `<Cesium3DTileset>` loads from Ion/URL → bounding sphere and location extracted.
+4. Camera initializes to global view (`flyHome(1.0)`).
+5. User pans → 500ms debounce → center location reverse-geocoded + elevation fetched + fact fetched.
+6. Bottom-left overlay updates with place name, elevation, fact, and "More Details" button.

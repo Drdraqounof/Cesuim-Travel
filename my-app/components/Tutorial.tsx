@@ -11,7 +11,7 @@ const steps = [
       </svg>
     ),
     title: "Welcome to TerraScope",
-    description: "Your geospatial intelligence platform for exploring cities in immersive 3D. This quick tour will show you everything you can do.",
+    description: "Your geospatial intelligence platform for exploring Earth in immersive 3D. Pan across the globe to discover places — the viewer automatically identifies your current view and shows you where you are.",
   },
   {
     icon: (
@@ -19,8 +19,17 @@ const steps = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
     ),
-    title: "Search Locations",
-    description: "Use the search bar in the 3D Viewer to find any city or landmark worldwide. Results appear instantly with geographic coordinates.",
+    title: "Search & Discover",
+    description: "Search any city or landmark to fly there instantly. As you pan around, the bottom-left overlay shows the country:city name, elevation, and coordinates of wherever you're looking. Click 'More Details' to see the full address.",
+  },
+  {
+    icon: (
+      <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+    ),
+    title: "Fun Facts",
+    description: "Every location loads an interesting fact in the bottom-left overlay. Famous places like Tokyo or Paris have multiple curated facts that rotate randomly. Obscure spots get AI-generated facts, double-checked for accuracy.",
   },
   {
     icon: (
@@ -29,7 +38,7 @@ const steps = [
       </svg>
     ),
     title: "3D City Viewer",
-    description: "Fly into any location and explore high-fidelity 3D environments with Cesium. Toggle 3D models on/off and navigate freely.",
+    description: "Toggle detailed 3D building models on/off, explore high-fidelity city environments, and apply a temperature heatmap overlay. Use My Location to fly to your GPS position.",
   },
   {
     icon: (
@@ -38,7 +47,7 @@ const steps = [
       </svg>
     ),
     title: "Save & Organize",
-    description: "Bookmark your favorite spots, like locations, and add personal notes. Everything syncs to your dashboard for easy access.",
+    description: "Bookmark your favorite spots, like locations, and add personal notes. Everything syncs to your dashboard for easy access later.",
   },
 ];
 
