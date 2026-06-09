@@ -71,7 +71,12 @@ export async function GET(request: Request) {
       if (cached) {
         points = cached;
       } else {
-        points = await fetchFromOpenWeatherMap(lat, lng, rows, cols, spacing, apiKey);
+        const keyValid = await validateApiKey(apiKey);
+        if (!keyValid) {
+          points = generateDemoPoints(lat, lng, rows, cols, spacing, daysAgo);
+        } else {
+          points = await fetchFromOpenWeatherMap(lat, lng, rows, cols, spacing, apiKey);
+        }
         cache.set(key, { points, ts: Date.now() });
         rateLimitWarned = false;
       }
@@ -83,6 +88,19 @@ export async function GET(request: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to generate temperature points';
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+// ── Pre-check API key with a single cell ──────────────────────
+async function validateApiKey(apiKey: string): Promise<boolean> {
+  try {
+    const resp = await fetch(
+      `https://api.openweathermap.org/data/3.0/onecall?lat=0&lon=0&exclude=minutely,hourly,daily,alerts&units=metric&appid=${apiKey}`,
+      { signal: AbortSignal.timeout(5000) },
+    );
+    return resp.ok;
+  } catch {
+    return false;
   }
 }
 
