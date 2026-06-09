@@ -107,18 +107,17 @@ function ViewerInner() {
       const lngNum = parseFloat(lng);
       if (!isNaN(latNum) && !isNaN(lngNum)) {
         const parts = (name || `${latNum}, ${lngNum}`).split(",");
-        setCurrentCity({
-          name: parts[0].trim(),
-          latitude: latNum,
-          longitude: lngNum,
-          country: parts.length > 1 ? parts[parts.length - 1].trim() : undefined,
-        });
         requestAnimationFrame(() => {
+          setCurrentCity({
+            name: parts[0].trim(),
+            latitude: latNum,
+            longitude: lngNum,
+            country: parts.length > 1 ? parts[parts.length - 1].trim() : undefined,
+          });
           cesiumRef.current?.flyToLocation(latNum, lngNum, name || `${latNum}, ${lngNum}`);
         });
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   return (

@@ -29,12 +29,12 @@ function checkRateLimit(): boolean {
   return true;
 }
 
-// ── in-memory cache (grid results keyed by location) ────────────
+// ── in-memory cache (grid results keyed by location + day) ─────
 const cache = new Map<string, { points: TempPoint[]; ts: number }>();
 const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
-function cacheKey(lat: number, lng: number, rows: number, cols: number, spacing: number): string {
-  return `${Math.round(lat * 100) / 100},${Math.round(lng * 100) / 100},${rows},${cols},${spacing}`;
+function cacheKey(lat: number, lng: number, rows: number, cols: number, spacing: number, daysAgo: number): string {
+  return `${Math.round(lat * 100) / 100},${Math.round(lng * 100) / 100},${rows},${cols},${spacing},d${daysAgo}`;
 }
 
 function getCached(key: string): TempPoint[] | null {
@@ -56,6 +56,7 @@ export async function GET(request: Request) {
     const spacing = Math.max(0.005, Math.min(0.1, Number(url.searchParams.get('spacing') ?? '0.02')));
     const rows = Math.max(3, Math.min(32, Number(url.searchParams.get('rows') ?? '3')));
     const cols = Math.max(3, Math.min(32, Number(url.searchParams.get('cols') ?? '3')));
+    const daysAgo = Math.max(0, Math.min(365, Number(url.searchParams.get('daysAgo') ?? '0')));
 
     if (!isFinite(lat) || !isFinite(lng)) {
       return NextResponse.json({ error: 'Invalid coordinates' }, { status: 400 });
@@ -65,7 +66,7 @@ export async function GET(request: Request) {
     let points: TempPoint[];
 
     if (apiKey) {
-      const key = cacheKey(lat, lng, rows, cols, spacing);
+      const key = cacheKey(lat, lng, rows, cols, spacing, daysAgo);
       const cached = getCached(key);
       if (cached) {
         points = cached;
@@ -75,7 +76,7 @@ export async function GET(request: Request) {
         rateLimitWarned = false;
       }
     } else {
-      points = generateDemoPoints(lat, lng, rows, cols, spacing);
+      points = generateDemoPoints(lat, lng, rows, cols, spacing, daysAgo);
     }
 
     return NextResponse.json({ points, spacing, rows, cols } satisfies ApiResponse);
@@ -149,8 +150,8 @@ function estimateCellTemp(
   lat: number,
   lng: number,
   succeeded: { r: number; c: number; tempC: number }[],
-  centerLat: number,
-  centerLng: number,
+  _centerLat: number,
+  _centerLng: number,
 ): number {
   if (succeeded.length === 0) return 20;
 
@@ -174,14 +175,22 @@ function generateDemoPoints(
   rows: number,
   cols: number,
   spacing: number,
+  daysAgo: number = 0,
 ): TempPoint[] {
   const points: TempPoint[] = [];
+  // Deterministic day-to-day weather variation
+  const dayAngle = daysAgo * 0.7;
+  const baseShift = Math.sin(dayAngle) * 4 + Math.cos(daysAgo * 0.3) * 2;
+  const gradientAngle = Math.sin(daysAgo * 0.5) * 0.5;
+  const noiseScale = 1 + Math.abs(Math.cos(daysAgo * 1.1)) * 1.5;
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const offsetLat = (r - Math.floor(rows / 2)) * spacing;
       const offsetLng = (c - Math.floor(cols / 2)) * spacing;
-      const tempC = Math.round(15 + (r - c) * 2 + (Math.random() - 0.5) * 3);
+      const cellNoise = Math.sin(r * 2.3 + c * 1.7 + daysAgo * 1.1) * noiseScale;
+      const gradient = (r * Math.cos(gradientAngle) + c * Math.sin(gradientAngle)) * 1.5;
+      const tempC = Math.round(15 + (r - c) * 2 + baseShift + gradient + cellNoise);
 
       points.push({
         latitude: centerLat + offsetLat,

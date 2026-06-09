@@ -1,3 +1,5 @@
+// DO NOT EDIT — This file is a data-only facts database maintained by the project.
+// LLM agents should read but never modify this file. Update the facts generator instead.
 export interface PlaceFacts {
   name: string;
   facts: string[];

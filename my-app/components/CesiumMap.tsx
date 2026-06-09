@@ -28,6 +28,7 @@ import {
   Viewer,
 } from "resium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
+import HeatmapTimeline from "./HeatmapTimeline";
 
 const CESIUM_CDN = "https://cdn.jsdelivr.net/npm/cesium@1.141.0/Build/Cesium/";
 const cesiumBaseUrl = process.env.NODE_ENV === "production"
@@ -95,7 +96,7 @@ type DowntownLocation = {
 };
 
 
-const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
+const CesiumMap = forwardRef<CesiumMapRef, object>(function CesiumMap(_, ref) {
   const viewerRef = useRef<CesiumComponentRef<CesiumViewer> | null>(null);
   const tilesetRef = useRef<Cesium3DTilesetPrimitive | null>(null);
   const [sceneState, setSceneState] = useState<SceneState>("loading");
@@ -106,6 +107,7 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
   const [activeView, setActiveView] = useState<(typeof DOWNTOWN_VIEWS)[number]["id"]>("overview");
   const [modelsVisible, setModelsVisible] = useState(true);
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [selectedDayOffset, setSelectedDayOffset] = useState(0);
   const [heatmapWarning, setHeatmapWarning] = useState("");
   const [heatmapSuccess, setHeatmapSuccess] = useState("");
   const [tempPoints, setTempPoints] = useState<Array<{latitude:number;longitude:number;tempC:number}>>([]);
@@ -158,8 +160,8 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
       const terrainHeight = viewer.scene.sampleHeight(targetCartographic) ?? 0;
       const endAltitude = terrainHeight + 500; // 500m above ground level
 
-      // Calculate heading to face the target location based on longitude
-      const targetHeading = CesiumMath.toRadians(longitude);
+      // Default heading: 0 = north-facing view
+      const targetHeading = CesiumMath.toRadians(0);
       
       // Fly to high altitude first to show planet spinning
       const highAltitudeDestination = Cartesian3.fromDegrees(longitude, latitude, startAltitude);
@@ -432,7 +434,7 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
   const GRID_SPACING = 0.025;
   const SMOOTH_FACTOR = 2;
 
-  const fetchTempPoints = async (centerLat?: number, centerLng?: number) => {
+  const fetchTempPoints = async (centerLat?: number, centerLng?: number, daysAgo?: number) => {
     const fetchId = ++fetchIdRef.current;
     try {
       const fallbackLat = downtownLocation ? Number(downtownLocation.latitude) : 37.7749;
@@ -442,8 +444,9 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
       if (!isFinite(lat) || !isFinite(lng)) return;
 
       lastFetchPosRef.current = { lat, lng };
+      const day = daysAgo ?? selectedDayOffset;
       const resp = await fetch(
-        `/api/temperature?lat=${lat}&lng=${lng}&spacing=${GRID_SPACING}&rows=${GRID_ROWS}&cols=${GRID_COLS}`
+        `/api/temperature?lat=${lat}&lng=${lng}&spacing=${GRID_SPACING}&rows=${GRID_ROWS}&cols=${GRID_COLS}&daysAgo=${day}`
       );
       if (fetchId !== fetchIdRef.current) return; // stale — a newer fetch was started
       const data = await resp.json();
@@ -470,9 +473,9 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
     if (!showHeatmap) return;
     const pos = centerLocation;
     if (!pos) return;
-    void fetchTempPoints(pos.lat, pos.lng);
+    void fetchTempPoints(pos.lat, pos.lng, selectedDayOffset);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showHeatmap, centerLocation, heatmapSettleKey]);
+  }, [showHeatmap, centerLocation, heatmapSettleKey, selectedDayOffset]);
 
   // Manage heatmap classification primitives directly on the Cesium scene
   useEffect(() => {
@@ -734,13 +737,21 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
           </button>
 
           {showHeatmap && (
-            <div className="flex items-center gap-1.5 rounded-md border border-white/10 bg-black/50 px-2.5 py-1.5 backdrop-blur">
-              <span className="mr-1 text-[10px] uppercase tracking-wide text-slate-300">Low</span>
-              {['#fff33b','#fdc70c','#f3903f','#ed683c','#e93e3a'].map((hex, i) => (
-                <span key={i} className="inline-block h-3 w-4 rounded-[2px]" style={{ backgroundColor: hex }} />
-              ))}
-              <span className="ml-1 text-[10px] uppercase tracking-wide text-slate-300">High</span>
-            </div>
+            <>
+              <div className="flex items-center gap-1.5 rounded-md border border-white/10 bg-black/50 px-2.5 py-1.5 backdrop-blur">
+                <span className="mr-1 text-[10px] uppercase tracking-wide text-slate-300">Low</span>
+                {['#fff33b','#fdc70c','#f3903f','#ed683c','#e93e3a'].map((hex, i) => (
+                  <span key={i} className="inline-block h-3 w-4 rounded-[2px]" style={{ backgroundColor: hex }} />
+                ))}
+                <span className="ml-1 text-[10px] uppercase tracking-wide text-slate-300">High</span>
+              </div>
+              <div className="w-56">
+                <HeatmapTimeline
+                  daysAgo={selectedDayOffset}
+                  onChange={setSelectedDayOffset}
+                />
+              </div>
+            </>
           )}
           {heatmapWarning && (
             <div className="rounded-md border border-yellow-400/40 bg-yellow-500/15 px-3 py-1.5 text-xs text-yellow-200 backdrop-blur">
@@ -759,7 +770,7 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
       </div>
 
       {/* Center location — bottom-left, always visible */}
-      <div className="absolute bottom-4 left-4 z-10 rounded-lg border border-white/10 bg-black/50 px-3 py-1.5 text-xs text-slate-300 backdrop-blur">
+      <div className="pointer-events-none absolute bottom-4 left-4 z-10 rounded-lg border border-white/10 bg-black/50 px-3 py-1.5 text-xs text-slate-300 backdrop-blur">
         {locating ? (
           <span>Locating…</span>
         ) : centerLocation ? (
@@ -772,7 +783,7 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
               </span>
               <button
                 onClick={() => setShowDetails(false)}
-                className="self-start rounded bg-white/10 px-2 py-0.5 text-[10px] text-slate-400 hover:text-white transition"
+                className="pointer-events-auto self-start rounded bg-white/10 px-2 py-0.5 text-[10px] text-slate-400 hover:text-white transition"
               >
                 Less Details
               </button>
@@ -794,7 +805,7 @@ const CesiumMap = forwardRef<CesiumMapRef, {}>(function CesiumMap(_, ref) {
               {centerFullAddress && (
                 <button
                   onClick={() => setShowDetails(true)}
-                  className="self-start rounded bg-white/10 px-2 py-0.5 mt-0.5 text-[10px] text-slate-400 hover:text-white transition"
+                  className="pointer-events-auto self-start rounded bg-white/10 px-2 py-0.5 mt-0.5 text-[10px] text-slate-400 hover:text-white transition"
                 >
                   More Details
                 </button>

@@ -7,6 +7,7 @@
     "build": "npm run copy:cesium-assets && next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "node scripts/run-tests.mjs",
     "copy:cesium-assets": "node ./scripts/copy-cesium-assets.mjs",
     "postinstall": "npm run copy:cesium-assets && prisma generate",
     "prisma:generate": "prisma generate",
